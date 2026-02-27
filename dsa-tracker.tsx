@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   PROBLEMS,
   SPACED_DAYS,
@@ -9,39 +9,50 @@ import {
   PATTERN_COLORS,
 } from "./src/config";
 
+/* ── helpers ─────────────────────────────────────────────── */
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + days);
   return d.toISOString().split("T")[0];
 }
-
 function today(): string {
   return new Date().toISOString().split("T")[0];
 }
-
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
-
 function daysFromNow(dateStr: string): string {
-  const diff = Math.ceil((new Date(dateStr + "T00:00:00").getTime() - new Date(today() + "T00:00:00").getTime()) / 86400000);
+  const diff = Math.ceil(
+    (new Date(dateStr + "T00:00:00").getTime() -
+      new Date(today() + "T00:00:00").getTime()) /
+      86400000
+  );
   if (diff === 0) return "Today";
   if (diff === 1) return "Tomorrow";
   if (diff < 0) return `${Math.abs(diff)}d overdue`;
   return `In ${diff}d`;
 }
 
-interface Revision {
-  date: string;
-  done: boolean;
+/* ── types ───────────────────────────────────────────────── */
+interface Revision { date: string; done: boolean }
+interface ProblemProgress { solvedDate: string; revisions: Revision[] }
+
+/* ── tiny reusable bits ──────────────────────────────────── */
+function ProgressRing({ pct, size = 44, stroke = 4, color }: { pct: number; size?: number; stroke?: number; color: string }) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  return (
+    <svg width={size} height={size} className="-rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} className="text-surface-700/40" />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={circ} strokeDashoffset={circ - circ * Math.min(pct, 1)} strokeLinecap="round"
+        className="transition-all duration-700 ease-out" />
+    </svg>
+  );
 }
 
-interface ProblemProgress {
-  solvedDate: string;
-  revisions: Revision[];
-}
-
+/* ── main app ────────────────────────────────────────────── */
 export default function App() {
   const [tab, setTab] = useState("problems");
   const [progress, setProgress] = useState<Record<number, ProblemProgress>>({});
@@ -52,12 +63,20 @@ export default function App() {
   const [popoverId, setPopoverId] = useState<number | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  // Close popover on outside click
+  /* ── random picker state ── */
+  const [randomPick, setRandomPick] = useState<typeof PROBLEMS[0] | null>(null);
+  const [pickHistory, setPickHistory] = useState<typeof PROBLEMS>([]);
+  const [pickScope, setPickScope] = useState<"all" | "unsolved" | "solved">("unsolved");
+  const [pickPattern, setPickPattern] = useState("All");
+  const [pickDiff, setPickDiff] = useState("All");
+  const [isRolling, setIsRolling] = useState(false);
+  const [pickRevealed, setPickRevealed] = useState(false);
+  const rollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /* close popover on outside click */
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setPopoverId(null);
-      }
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) setPopoverId(null);
     }
     if (popoverId !== null) {
       document.addEventListener("mousedown", handleClick);
@@ -65,6 +84,7 @@ export default function App() {
     }
   }, [popoverId]);
 
+  /* load from localStorage */
   useEffect(() => {
     try {
       const stored = localStorage.getItem("dsa-progress");
@@ -77,15 +97,11 @@ export default function App() {
     setProgress(next);
     try { localStorage.setItem("dsa-progress", JSON.stringify(next)); } catch (_) {}
   }
-
   function markSolved(id: number) {
+    if (progress[id]?.solvedDate) return;
     const td = today();
-    const existing = progress[id] || {};
-    if (existing.solvedDate) return;
-    const revisions = SPACED_DAYS.map(d => ({ date: addDays(td, d), done: false }));
-    save({ ...progress, [id]: { solvedDate: td, revisions } });
+    save({ ...progress, [id]: { solvedDate: td, revisions: SPACED_DAYS.map(d => ({ date: addDays(td, d), done: false })) } });
   }
-
   function toggleRevision(id: number, rIdx: number) {
     const p = { ...progress };
     const revs = [...p[id].revisions];
@@ -93,25 +109,51 @@ export default function App() {
     p[id] = { ...p[id], revisions: revs };
     save(p);
   }
-
   function unmark(id: number) {
     const p = { ...progress };
     delete p[id];
     save(p);
   }
+  function toggleReveal(id: number) { setRevealed(r => ({ ...r, [id]: !r[id] })); }
 
-  function toggleReveal(id: number) {
-    setRevealed(r => ({ ...r, [id]: !r[id] }));
-  }
-
-  const todayStr = today();
-
-  const todayRevisions = PROBLEMS.filter(p => {
-    const pg = progress[p.id];
-    if (!pg) return false;
-    return pg.revisions.some((r, i) => !r.done && r.date <= todayStr);
+  /* ── random picker logic ── */
+  const pickPool = PROBLEMS.filter(p => {
+    if (pickScope === "unsolved" && progress[p.id]) return false;
+    if (pickScope === "solved" && !progress[p.id]) return false;
+    if (pickPattern !== "All" && p.pattern !== pickPattern) return false;
+    if (pickDiff !== "All" && p.difficulty !== pickDiff) return false;
+    return true;
   });
 
+  const rollRandomQuestion = useCallback(() => {
+    if (pickPool.length === 0) return;
+    setPickRevealed(false);
+    setIsRolling(true);
+    let ticks = 0;
+    const maxTicks = 12;
+    if (rollIntervalRef.current) clearInterval(rollIntervalRef.current);
+    rollIntervalRef.current = setInterval(() => {
+      const rand = pickPool[Math.floor(Math.random() * pickPool.length)];
+      setRandomPick(rand);
+      ticks++;
+      if (ticks >= maxTicks) {
+        if (rollIntervalRef.current) clearInterval(rollIntervalRef.current);
+        rollIntervalRef.current = null;
+        setIsRolling(false);
+        setPickHistory(h => [rand, ...h.filter(x => x.id !== rand.id)].slice(0, 10));
+      }
+    }, 80 + ticks * 15);
+  }, [pickPool]);
+
+  useEffect(() => {
+    return () => { if (rollIntervalRef.current) clearInterval(rollIntervalRef.current); };
+  }, []);
+
+  const todayStr = today();
+  const todayRevisions = PROBLEMS.filter(p => {
+    const pg = progress[p.id];
+    return pg && pg.revisions.some(r => !r.done && r.date <= todayStr);
+  });
   const upcomingRevisions = PROBLEMS.flatMap(p => {
     const pg = progress[p.id];
     if (!pg) return [];
@@ -121,280 +163,663 @@ export default function App() {
   }).sort((a, b) => a.revDate.localeCompare(b.revDate));
 
   const solvedCount = Object.keys(progress).length;
-  const totalRevsDone = Object.values(progress).reduce((a: number, pg: ProblemProgress) => a + pg.revisions.filter((r: Revision) => r.done).length, 0);
+  const totalRevsDone = Object.values(progress).reduce(
+    (a, pg) => a + pg.revisions.filter(r => r.done).length, 0
+  );
   const totalRevs = solvedCount * SPACED_DAYS.length;
-
-  const filtered = PROBLEMS.filter(p =>
-    (filterPattern === "All" || p.pattern === filterPattern) &&
-    (filterDiff === "All" || p.difficulty === filterDiff)
+  const filtered = PROBLEMS.filter(
+    p =>
+      (filterPattern === "All" || p.pattern === filterPattern) &&
+      (filterDiff === "All" || p.difficulty === filterDiff)
   );
 
-  if (!loaded) return <div style={{ background: "#0f172a", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>Loading...</div>;
+  if (!loaded)
+    return (
+      <div className="flex h-screen items-center justify-center bg-surface-950 text-surface-400">
+        <div className="flex flex-col items-center gap-3 animate-pulse-soft">
+          <div className="w-10 h-10 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+          <span className="text-sm font-medium">Loading tracker…</span>
+        </div>
+      </div>
+    );
 
+  /* ── render ────────────────────────────────────────────── */
   return (
-    <div style={{ background: "#0f172a", minHeight: "100vh", color: "#e2e8f0", fontFamily: "'Inter', sans-serif", fontSize: 14 }}>
-      {/* Header */}
-      <div style={{ background: "#1e293b", borderBottom: "1px solid #334155", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 18, color: "#f1f5f9" }}>🧠 DSA Revision Tracker</div>
-          <div style={{ color: "#64748b", fontSize: 12, marginTop: 2 }}>Spaced Repetition · Pattern Blind · Interview Ready</div>
-        </div>
-        <div style={{ display: "flex", gap: 20 }}>
-          {[
-            { label: "Solved", val: solvedCount, total: PROBLEMS.length, color: "#4ade80" },
-            { label: "Revisions Done", val: totalRevsDone, total: totalRevs, color: "#818cf8" },
-            { label: "Due Today", val: todayRevisions.length, color: "#f87171" },
-          ].map(s => (
-            <div key={s.label} style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.val}{s.total !== undefined ? <span style={{ color: "#475569", fontSize: 13 }}>/{s.total}</span> : ""}</div>
-              <div style={{ fontSize: 11, color: "#64748b" }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+    <div className="min-h-screen bg-surface-950 text-surface-200 font-sans">
+      {/* ──────── HEADER ──────── */}
+      <header className="relative overflow-hidden border-b border-surface-700/50">
+        {/* gradient glow behind header */}
+        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[600px] h-48 bg-blue-600/10 blur-[100px] rounded-full pointer-events-none" />
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 4, padding: "12px 24px", borderBottom: "1px solid #1e293b" }}>
-        {[["problems", "📋 Problems"], ["today", `⚡ Today (${todayRevisions.length})`], ["upcoming", "📅 Upcoming"]].map(([t, label]) => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            padding: "6px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 13,
-            background: tab === t ? "#3b82f6" : "#1e293b", color: tab === t ? "#fff" : "#94a3b8", transition: "all .15s"
-          }}>{label}</button>
-        ))}
-      </div>
+        <div className="relative z-10 mx-auto max-w-7xl px-6 py-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          {/* brand */}
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
+              <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-lg shadow-lg shadow-blue-600/30">🧠</span>
+              DSA Revision Tracker
+            </h1>
+            <p className="mt-1 text-xs text-surface-500">Spaced Repetition · Pattern Blind · Interview Ready</p>
+          </div>
 
-      <div style={{ padding: "20px 24px" }}>
-        {/* PROBLEMS TAB */}
+          {/* stat cards */}
+          <div className="flex gap-4 flex-wrap">
+            {[
+              { label: "Solved", val: solvedCount, total: PROBLEMS.length, color: "#4ade80", ring: "text-emerald-400" },
+              { label: "Revisions", val: totalRevsDone, total: totalRevs, color: "#818cf8", ring: "text-indigo-400" },
+              { label: "Due Today", val: todayRevisions.length, total: undefined, color: "#f87171", ring: "text-red-400" },
+            ].map(s => (
+              <div key={s.label} className="glass-card px-5 py-3 flex items-center gap-3 min-w-[160px]">
+                <div className="relative flex items-center justify-center">
+                  <ProgressRing pct={s.total ? s.val / (s.total || 1) : s.val > 0 ? 1 : 0} color={s.color} />
+                  <span className="absolute text-xs font-bold" style={{ color: s.color }}>
+                    {s.val}
+                  </span>
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-wider text-surface-500 font-semibold">{s.label}</div>
+                  {s.total !== undefined && (
+                    <div className="text-sm font-bold text-surface-300">
+                      {s.val}<span className="text-surface-600">/{s.total}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      {/* ──────── TABS ──────── */}
+      <nav className="mx-auto max-w-7xl px-6 pt-5 pb-2 flex items-center gap-2">
+        {([
+          ["problems", "Problems", "📋"],
+          ["random", "Random", "🎲"],
+          ["today", "Today", "⚡"],
+          ["upcoming", "Upcoming", "📅"],
+        ] as const).map(([key, label, icon]) => {
+          const count = key === "today" ? todayRevisions.length : key === "upcoming" ? upcomingRevisions.length : key === "random" ? pickPool.length : filtered.length;
+          return (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`tab-btn flex items-center gap-1.5 ${tab === key ? "tab-btn-active" : "tab-btn-inactive"}`}
+            >
+              <span>{icon}</span> {label}
+              <span className={`ml-1 text-[11px] font-bold rounded-full px-2 py-0.5 ${
+                tab === key ? "bg-white/20 text-white" : "bg-surface-700 text-surface-400"
+              }`}>{count}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* ──────── CONTENT ──────── */}
+      <main className="mx-auto max-w-7xl px-6 py-5 animate-fade-in">
+        {/* ═══ PROBLEMS TAB ═══ */}
         {tab === "problems" && (
-          <>
-            {/* Filters */}
-            <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
-              <span style={{ color: "#64748b", fontSize: 12, fontWeight: 600 }}>PATTERN</span>
-              {PATTERNS.map(p => (
-                <button key={p} onClick={() => setFilterPattern(p)} style={{
-                  padding: "4px 12px", borderRadius: 20, border: "1px solid",
-                  borderColor: filterPattern === p ? (PATTERN_COLORS[p] || "#3b82f6") : "#334155",
-                  background: filterPattern === p ? (PATTERN_COLORS[p] ? PATTERN_COLORS[p] + "22" : "#3b82f622") : "transparent",
-                  color: filterPattern === p ? (PATTERN_COLORS[p] || "#3b82f6") : "#94a3b8",
-                  cursor: "pointer", fontSize: 12, fontWeight: 500
-                }}>{p}</button>
-              ))}
-              <span style={{ color: "#64748b", fontSize: 12, fontWeight: 600, marginLeft: 8 }}>DIFFICULTY</span>
-              {DIFFICULTIES.map(d => (
-                <button key={d} onClick={() => setFilterDiff(d)} style={{
-                  padding: "4px 12px", borderRadius: 20, border: "1px solid",
-                  borderColor: filterDiff === d ? (DIFF_COLOR[d] || "#3b82f6") : "#334155",
-                  background: filterDiff === d ? (DIFF_BG[d] || "#3b82f622") : "transparent",
-                  color: filterDiff === d ? (DIFF_COLOR[d] || "#3b82f6") : "#94a3b8",
-                  cursor: "pointer", fontSize: 12, fontWeight: 500
-                }}>{d}</button>
-              ))}
+          <div className="space-y-5">
+            {/* filters */}
+            <div className="glass-card p-4 flex flex-col gap-4">
+              {/* pattern row */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-widest text-surface-500 mr-1">Pattern</span>
+                {PATTERNS.map(p => {
+                  const active = filterPattern === p;
+                  const c = PATTERN_COLORS[p] || "#3b82f6";
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => setFilterPattern(p)}
+                      className={`pill ${active ? "pill-active" : ""}`}
+                      style={{
+                        borderColor: active ? c : undefined,
+                        background: active ? c + "18" : undefined,
+                        color: active ? c : undefined,
+                        ...(active ? { boxShadow: `0 0 12px ${c}25` } : {}),
+                        ...(!active ? { borderColor: "rgb(51 65 85 / .5)", color: "rgb(148 163 184)" } : {}),
+                      }}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* difficulty row */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-widest text-surface-500 mr-1">Difficulty</span>
+                {DIFFICULTIES.map(d => {
+                  const active = filterDiff === d;
+                  const c = DIFF_COLOR[d] || "#3b82f6";
+                  const bg = DIFF_BG[d] || "#3b82f622";
+                  return (
+                    <button
+                      key={d}
+                      onClick={() => setFilterDiff(d)}
+                      className={`pill ${active ? "pill-active" : ""}`}
+                      style={{
+                        borderColor: active ? c : undefined,
+                        background: active ? bg : undefined,
+                        color: active ? c : undefined,
+                        ...(!active ? { borderColor: "rgb(51 65 85 / .5)", color: "rgb(148 163 184)" } : {}),
+                      }}
+                    >
+                      {d}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Pattern blind notice */}
-            <div style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 10, padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
-              <span>🙈</span>
-              <span style={{ color: "#94a3b8", fontSize: 13 }}>Patterns are <strong style={{ color: "#f1f5f9" }}>hidden by default</strong>. Try to identify the pattern yourself first, then tap <strong style={{ color: "#818cf8" }}>Reveal</strong> to verify.</span>
+            {/* pattern-blind notice */}
+            <div className="glass-card-inner flex items-center gap-3 px-4 py-3 text-sm text-surface-400">
+              <span className="text-xl">🙈</span>
+              <span>
+                Patterns are <strong className="text-surface-100">hidden by default</strong>. Try to identify the pattern yourself, then tap{" "}
+                <strong className="text-indigo-400">Reveal</strong> to verify.
+              </span>
             </div>
 
-            {/* Table */}
-            <div style={{ background: "#1e293b", borderRadius: 12, border: "1px solid #334155", overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ background: "#0f172a" }}>
-                    {["#", "Problem", "Difficulty", "Pattern", "Status", "Spaced Repetition", "Actions"].map(h => (
-                      <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#475569", fontSize: 11, fontWeight: 700, letterSpacing: 1, borderBottom: "1px solid #334155", whiteSpace: "nowrap" }}>{h.toUpperCase()}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((p, i) => {
-                    const pg = progress[p.id];
-                    const solved = !!pg;
-                    return (
-                      <tr key={p.id} style={{ borderBottom: "1px solid #1e293b", background: i % 2 === 0 ? "transparent" : "#0f172a22" }}>
-                        <td style={{ padding: "10px 14px", color: "#475569", fontSize: 12 }}>{i + 1}</td>
-                        <td style={{ padding: "10px 14px" }}>
-                          <a href={p.url} target="_blank" rel="noreferrer" style={{ color: solved ? "#4ade80" : "#e2e8f0", textDecoration: "none", fontWeight: 500 }}>
-                            {solved && "✓ "}{p.name}
-                          </a>
-                        </td>
-                        <td style={{ padding: "10px 14px" }}>
-                          <span style={{ background: DIFF_BG[p.difficulty], color: DIFF_COLOR[p.difficulty], padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 600 }}>{p.difficulty}</span>
-                        </td>
-                        <td style={{ padding: "10px 14px" }}>
-                          {revealed[p.id]
-                            ? <span onClick={() => toggleReveal(p.id)} style={{ background: PATTERN_COLORS[p.pattern] + "22", color: PATTERN_COLORS[p.pattern], padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{p.pattern} ✕</span>
-                            : <button onClick={() => toggleReveal(p.id)} style={{ background: "#334155", border: "none", color: "#94a3b8", padding: "2px 10px", borderRadius: 10, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>👁 Reveal</button>
-                          }
-                        </td>
-                        <td style={{ padding: "10px 14px" }}>
-                          {solved
-                            ? <span style={{ color: "#4ade80", fontSize: 12 }}>✅ {formatDate(pg.solvedDate)}</span>
-                            : <span style={{ color: "#475569", fontSize: 12 }}>Unsolved</span>}
-                        </td>
-                        <td style={{ padding: "10px 14px", position: "relative" }}>
-                          {solved ? (
-                            <div style={{ position: "relative" }}>
-                              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                                {pg.revisions.map((r: any, idx: number) => {
-                                  const overdue = !r.done && r.date <= todayStr;
-                                  return (
-                                    <div key={idx} title={`Rev ${idx + 1}: ${formatDate(r.date)} — ${r.done ? "Done" : overdue ? "Overdue!" : daysFromNow(r.date)}`} style={{
-                                      width: 32, height: 32, borderRadius: 6, display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, cursor: "pointer",
-                                      background: r.done ? "#14532d" : overdue ? "#7f1d1d" : "#1e3a5f",
-                                      color: r.done ? "#4ade80" : overdue ? "#f87171" : "#60a5fa",
-                                      border: `1px solid ${r.done ? "#4ade80" : overdue ? "#f87171" : "#3b82f6"}44`,
-                                      lineHeight: 1.1
-                                    }} onClick={() => toggleRevision(p.id, idx)}>
-                                      <span style={{ fontSize: 10 }}>{r.done ? "✓" : `R${idx + 1}`}</span>
-                                      <span style={{ fontSize: 8, opacity: 0.7 }}>{formatDate(r.date).split(" ")[0]}/{formatDate(r.date).split(" ")[1]}</span>
-                                    </div>
-                                  );
-                                })}
-                                <button onClick={() => setPopoverId(popoverId === p.id ? null : p.id)} style={{ background: "#334155", border: "none", color: "#94a3b8", width: 24, height: 24, borderRadius: 6, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>ℹ</button>
-                              </div>
-                              {/* Popover */}
-                              {popoverId === p.id && (
-                                <div ref={popoverRef} style={{
-                                  position: "absolute", top: 40, left: 0, zIndex: 50,
-                                  background: "#1e293b", border: "1px solid #475569", borderRadius: 10,
-                                  padding: 16, minWidth: 260, boxShadow: "0 8px 30px #0008"
-                                }}>
-                                  <div style={{ fontWeight: 700, fontSize: 13, color: "#f1f5f9", marginBottom: 8 }}>Revision Schedule</div>
-                                  <div style={{ fontSize: 12, color: "#64748b", marginBottom: 10 }}>Solved on {formatDate(pg.solvedDate)} · {pg.revisions.filter((r: any) => r.done).length}/{pg.revisions.length} revisions done</div>
-                                  {pg.revisions.map((r: any, idx: number) => {
+            {/* table */}
+            <div className="glass-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-surface-900/70">
+                      {["#", "Problem", "Difficulty", "Pattern", "Status", "Spaced Repetition", "Actions"].map(h => (
+                        <th key={h} className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-surface-500 whitespace-nowrap first:rounded-tl-2xl last:rounded-tr-2xl">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-700/30">
+                    {filtered.map((p, i) => {
+                      const pg = progress[p.id];
+                      const solved = !!pg;
+                      return (
+                        <tr key={p.id} className="table-row group">
+                          {/* # */}
+                          <td className="px-4 py-3 text-surface-500 text-xs tabular-nums">{i + 1}</td>
+                          {/* name */}
+                          <td className="px-4 py-3">
+                            <a href={p.url} target="_blank" rel="noreferrer"
+                              className={`font-medium hover:underline decoration-1 underline-offset-2 ${solved ? "text-emerald-400" : "text-surface-100 group-hover:text-white"}`}>
+                              {solved && <span className="mr-1">✓</span>}
+                              {p.name}
+                            </a>
+                          </td>
+                          {/* difficulty */}
+                          <td className="px-4 py-3">
+                            <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
+                              style={{ background: DIFF_BG[p.difficulty], color: DIFF_COLOR[p.difficulty] }}>
+                              {p.difficulty}
+                            </span>
+                          </td>
+                          {/* pattern */}
+                          <td className="px-4 py-3">
+                            {revealed[p.id] ? (
+                              <button onClick={() => toggleReveal(p.id)}
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold cursor-pointer transition-colors"
+                                style={{ background: PATTERN_COLORS[p.pattern] + "1a", color: PATTERN_COLORS[p.pattern] }}>
+                                {p.pattern} <span className="opacity-60">✕</span>
+                              </button>
+                            ) : (
+                              <button onClick={() => toggleReveal(p.id)}
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium cursor-pointer bg-surface-700/60 text-surface-400 hover:bg-surface-600/60 hover:text-surface-200 transition-colors">
+                                👁 Reveal
+                              </button>
+                            )}
+                          </td>
+                          {/* status */}
+                          <td className="px-4 py-3">
+                            {solved ? (
+                              <span className="text-emerald-400 text-xs font-medium flex items-center gap-1">
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                {formatDate(pg.solvedDate)}
+                              </span>
+                            ) : (
+                              <span className="text-surface-600 text-xs">Unsolved</span>
+                            )}
+                          </td>
+                          {/* spaced repetition */}
+                          <td className="px-4 py-3 relative">
+                            {solved ? (
+                              <div className="relative">
+                                <div className="flex items-center gap-1.5">
+                                  {pg.revisions.map((r: Revision, idx: number) => {
                                     const overdue = !r.done && r.date <= todayStr;
                                     return (
-                                      <div key={idx} style={{
-                                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                                        padding: "8px 10px", borderRadius: 8, marginBottom: 4,
-                                        background: r.done ? "#14532d22" : overdue ? "#7f1d1d22" : "#1e3a5f22"
-                                      }}>
-                                        <div>
-                                          <div style={{ fontWeight: 600, fontSize: 12, color: r.done ? "#4ade80" : overdue ? "#f87171" : "#60a5fa" }}>
-                                            Rev {idx + 1} — Day +{SPACED_DAYS[idx]}
-                                          </div>
-                                          <div style={{ fontSize: 11, color: "#64748b" }}>
-                                            {formatDate(r.date)} · {r.done ? "Completed" : overdue ? "Overdue!" : daysFromNow(r.date)}
-                                          </div>
-                                        </div>
-                                        {r.done
-                                          ? <button onClick={() => toggleRevision(p.id, idx)} style={{ background: "#14532d", border: "1px solid #4ade8044", color: "#4ade80", padding: "3px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>↩ Undo</button>
-                                          : <button onClick={() => toggleRevision(p.id, idx)} style={{
-                                              background: overdue ? "#7f1d1d" : "#1e3a5f",
-                                              border: `1px solid ${overdue ? "#f87171" : "#3b82f6"}44`,
-                                              color: overdue ? "#f87171" : "#60a5fa",
-                                              padding: "3px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontWeight: 600
-                                            }}>✓ Done</button>
-                                        }
-                                      </div>
+                                      <button
+                                        key={idx}
+                                        onClick={() => toggleRevision(p.id, idx)}
+                                        title={`Rev ${idx + 1}: ${formatDate(r.date)} — ${r.done ? "Done" : overdue ? "Overdue!" : daysFromNow(r.date)}`}
+                                        className={`revision-dot ${
+                                          r.done
+                                            ? "bg-emerald-900/50 text-emerald-400 border-emerald-500/30 hover:border-emerald-400/60"
+                                            : overdue
+                                            ? "bg-red-900/50 text-red-400 border-red-500/30 hover:border-red-400/60 animate-pulse-soft"
+                                            : "bg-blue-900/40 text-blue-400 border-blue-500/25 hover:border-blue-400/60"
+                                        }`}
+                                      >
+                                        <span className="text-[10px] leading-none">{r.done ? "✓" : `R${idx + 1}`}</span>
+                                        <span className="text-[7px] opacity-60 leading-none">
+                                          {formatDate(r.date).replace(" ", "/")}
+                                        </span>
+                                      </button>
                                     );
                                   })}
-                                  <button onClick={() => setPopoverId(null)} style={{ marginTop: 8, background: "transparent", border: "1px solid #334155", color: "#64748b", padding: "4px 12px", borderRadius: 6, fontSize: 11, cursor: "pointer", width: "100%" }}>Close</button>
+                                  {/* info button */}
+                                  <button
+                                    onClick={() => setPopoverId(popoverId === p.id ? null : p.id)}
+                                    className="w-7 h-7 rounded-lg bg-surface-700/60 text-surface-400 hover:bg-surface-600/80 hover:text-surface-200 flex items-center justify-center text-xs transition-colors cursor-pointer"
+                                  >
+                                    ℹ
+                                  </button>
                                 </div>
-                              )}
-                            </div>
-                          ) : <span style={{ color: "#334155", fontSize: 12 }}>—</span>}
-                        </td>
-                        <td style={{ padding: "10px 14px" }}>
-                          <div style={{ display: "flex", gap: 6 }}>
-                            {!solved
-                              ? <button onClick={() => markSolved(p.id)} style={{ background: "#14532d", border: "1px solid #4ade8044", color: "#4ade80", padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>✓ Done</button>
-                              : <button onClick={() => unmark(p.id)} style={{ background: "#1e293b", border: "1px solid #334155", color: "#64748b", padding: "4px 10px", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>↩ Undo</button>
-                            }
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+
+                                {/* popover */}
+                                {popoverId === p.id && (
+                                  <div
+                                    ref={popoverRef}
+                                    className="absolute top-11 left-0 z-50 glass-card p-4 min-w-[280px] animate-slide-up"
+                                  >
+                                    <div className="font-bold text-sm text-white mb-1">Revision Schedule</div>
+                                    <p className="text-xs text-surface-500 mb-3">
+                                      Solved on {formatDate(pg.solvedDate)} ·{" "}
+                                      {pg.revisions.filter((r: Revision) => r.done).length}/{pg.revisions.length} done
+                                    </p>
+                                    <div className="space-y-1.5">
+                                      {pg.revisions.map((r: Revision, idx: number) => {
+                                        const overdue = !r.done && r.date <= todayStr;
+                                        return (
+                                          <div
+                                            key={idx}
+                                            className={`flex items-center justify-between rounded-lg px-3 py-2 ${
+                                              r.done
+                                                ? "bg-emerald-900/20"
+                                                : overdue
+                                                ? "bg-red-900/20"
+                                                : "bg-blue-900/15"
+                                            }`}
+                                          >
+                                            <div>
+                                              <div className={`text-xs font-semibold ${r.done ? "text-emerald-400" : overdue ? "text-red-400" : "text-blue-400"}`}>
+                                                Rev {idx + 1} — Day +{SPACED_DAYS[idx]}
+                                              </div>
+                                              <div className="text-[11px] text-surface-500">
+                                                {formatDate(r.date)} · {r.done ? "Completed" : overdue ? "Overdue!" : daysFromNow(r.date)}
+                                              </div>
+                                            </div>
+                                            <button
+                                              onClick={() => toggleRevision(p.id, idx)}
+                                              className={`text-[11px] font-semibold px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                                                r.done
+                                                  ? "bg-emerald-900/40 text-emerald-400 hover:bg-emerald-900/60 border border-emerald-500/20"
+                                                  : overdue
+                                                  ? "bg-red-900/40 text-red-400 hover:bg-red-900/60 border border-red-500/20"
+                                                  : "bg-blue-900/40 text-blue-400 hover:bg-blue-900/60 border border-blue-500/20"
+                                              }`}
+                                            >
+                                              {r.done ? "↩ Undo" : "✓ Done"}
+                                            </button>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    <button
+                                      onClick={() => setPopoverId(null)}
+                                      className="mt-3 w-full text-xs text-surface-500 hover:text-surface-300 border border-surface-700/50 rounded-lg py-1.5 cursor-pointer transition-colors"
+                                    >
+                                      Close
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-surface-700 text-xs">—</span>
+                            )}
+                          </td>
+                          {/* actions */}
+                          <td className="px-4 py-3">
+                            {!solved ? (
+                              <button onClick={() => markSolved(p.id)} className="btn-success text-[11px] px-3 py-1.5">
+                                ✓ Solved
+                              </button>
+                            ) : (
+                              <button onClick={() => unmark(p.id)} className="btn-ghost text-[11px] px-3 py-1.5">
+                                ↩ Undo
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {/* bottom bar */}
+              <div className="flex items-center justify-between px-4 py-3 border-t border-surface-700/30 bg-surface-900/40">
+                <span className="text-xs text-surface-500">
+                  Showing {filtered.length} of {PROBLEMS.length} problems
+                </span>
+                <span className="text-xs text-surface-500">
+                  {solvedCount} solved · {PROBLEMS.length - solvedCount} remaining
+                </span>
+              </div>
             </div>
-          </>
+          </div>
         )}
 
-        {/* TODAY TAB */}
-        {tab === "today" && (
-          <div>
-            <div style={{ marginBottom: 16, color: "#94a3b8" }}>
-              {todayRevisions.length === 0
-                ? <div style={{ textAlign: "center", padding: 60, color: "#475569" }}>
-                    <div style={{ fontSize: 40 }}>🎉</div>
-                    <div style={{ marginTop: 12, fontSize: 16, color: "#64748b" }}>No revisions due today!</div>
-                    <div style={{ marginTop: 6, fontSize: 13 }}>Keep solving problems to build your schedule.</div>
+        {/* ═══ RANDOM PICKER TAB ═══ */}
+        {tab === "random" && (
+          <div className="animate-fade-in space-y-6">
+            {/* picker controls */}
+            <div className="glass-card p-5">
+              <div className="flex flex-col lg:flex-row lg:items-end gap-5">
+                {/* scope */}
+                <div className="flex-1 space-y-3">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span className="text-lg">🎯</span> Pick Settings
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-surface-500">Scope</span>
+                    {(["all", "unsolved", "solved"] as const).map(s => (
+                      <button key={s} onClick={() => setPickScope(s)}
+                        className={`pill ${pickScope === s ? "pill-active bg-blue-500/15 border-blue-400 text-blue-400" : ""}`}
+                        style={pickScope !== s ? { borderColor: "rgb(51 65 85 / .5)", color: "rgb(148 163 184)" } : {}}
+                      >
+                        {s === "all" ? "All" : s === "unsolved" ? "Unsolved" : "Solved"}
+                      </button>
+                    ))}
                   </div>
-                : <>
-                  <div style={{ marginBottom: 14, fontSize: 13, color: "#64748b" }}>{todayRevisions.length} problem{todayRevisions.length > 1 ? "s" : ""} due for revision today</div>
-                  {todayRevisions.map(p => {
-                    const pg = progress[p.id];
-                    const dueRevs = pg.revisions.map((r, i) => ({ ...r, i })).filter(r => !r.done && r.date <= todayStr);
-                    return (
-                      <div key={p.id} style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 12, padding: "16px", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                            <span style={{ background: DIFF_BG[p.difficulty], color: DIFF_COLOR[p.difficulty], padding: "1px 7px", borderRadius: 8, fontSize: 11, fontWeight: 600 }}>{p.difficulty}</span>
-                            <span style={{ background: PATTERN_COLORS[p.pattern] + "22", color: PATTERN_COLORS[p.pattern], padding: "1px 7px", borderRadius: 8, fontSize: 11, fontWeight: 600 }}>{p.pattern}</span>
-                          </div>
-                          <a href={p.url} target="_blank" rel="noreferrer" style={{ color: "#f1f5f9", fontWeight: 600, textDecoration: "none", fontSize: 15 }}>{p.name}</a>
-                          <div style={{ marginTop: 4, color: "#64748b", fontSize: 12 }}>Solved: {formatDate(pg.solvedDate)}</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-surface-500">Pattern</span>
+                    {PATTERNS.map(p => {
+                      const active = pickPattern === p;
+                      const c = PATTERN_COLORS[p] || "#3b82f6";
+                      return (
+                        <button key={p} onClick={() => setPickPattern(p)}
+                          className={`pill ${active ? "pill-active" : ""}`}
+                          style={{
+                            borderColor: active ? c : undefined,
+                            background: active ? c + "18" : undefined,
+                            color: active ? c : undefined,
+                            ...(active ? { boxShadow: `0 0 12px ${c}25` } : {}),
+                            ...(!active ? { borderColor: "rgb(51 65 85 / .5)", color: "rgb(148 163 184)" } : {}),
+                          }}
+                        >{p}</button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-surface-500">Difficulty</span>
+                    {DIFFICULTIES.map(d => {
+                      const active = pickDiff === d;
+                      const c = DIFF_COLOR[d] || "#3b82f6";
+                      const bg = DIFF_BG[d] || "#3b82f622";
+                      return (
+                        <button key={d} onClick={() => setPickDiff(d)}
+                          className={`pill ${active ? "pill-active" : ""}`}
+                          style={{
+                            borderColor: active ? c : undefined,
+                            background: active ? bg : undefined,
+                            color: active ? c : undefined,
+                            ...(!active ? { borderColor: "rgb(51 65 85 / .5)", color: "rgb(148 163 184)" } : {}),
+                          }}
+                        >{d}</button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {/* pick button */}
+                <div className="flex flex-col items-center gap-2">
+                  <button
+                    onClick={rollRandomQuestion}
+                    disabled={pickPool.length === 0 || isRolling}
+                    className="group relative px-8 py-4 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-bold text-base shadow-xl shadow-indigo-600/30 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden"
+                  >
+                    <span className="relative z-10 flex items-center gap-2">
+                      <span className={`text-xl ${isRolling ? "animate-spin" : "group-hover:animate-bounce"}`}>🎲</span>
+                      {isRolling ? "Rolling…" : "Pick Random"}
+                    </span>
+                    <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                  <span className="text-[11px] text-surface-500">{pickPool.length} question{pickPool.length !== 1 ? "s" : ""} in pool</span>
+                </div>
+              </div>
+            </div>
+
+            {/* picked question */}
+            {randomPick && (
+              <div className={`glass-card p-6 transition-all duration-300 ${isRolling ? "scale-[0.98] opacity-80" : "scale-100 opacity-100"}`}>
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div>
+                    <div className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">
+                      {isRolling ? "Shuffling…" : "Your question"}
+                    </div>
+                    <h2 className="text-xl font-bold text-white mb-3">{randomPick.name}</h2>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold"
+                        style={{ background: DIFF_BG[randomPick.difficulty], color: DIFF_COLOR[randomPick.difficulty] }}>
+                        {randomPick.difficulty}
+                      </span>
+                      {pickRevealed ? (
+                        <button onClick={() => setPickRevealed(false)}
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition-colors"
+                          style={{ background: PATTERN_COLORS[randomPick.pattern] + "1a", color: PATTERN_COLORS[randomPick.pattern] }}>
+                          {randomPick.pattern} <span className="opacity-60">✕</span>
+                        </button>
+                      ) : (
+                        <button onClick={() => setPickRevealed(true)}
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium cursor-pointer bg-surface-700/60 text-surface-400 hover:bg-surface-600/60 hover:text-surface-200 transition-colors">
+                          👁 Reveal Pattern
+                        </button>
+                      )}
+                      {progress[randomPick.id] ? (
+                        <span className="text-emerald-400 text-xs font-medium flex items-center gap-1">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" /> Solved
+                        </span>
+                      ) : (
+                        <span className="text-surface-500 text-xs">Unsolved</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2 shrink-0">
+                    <a href={randomPick.url} target="_blank" rel="noreferrer"
+                      className="btn-primary text-xs px-4 py-2 text-center no-underline">
+                      Open on LeetCode ↗
+                    </a>
+                    {!progress[randomPick.id] && (
+                      <button onClick={() => markSolved(randomPick.id)} className="btn-success text-xs px-4 py-2">
+                        ✓ Mark Solved
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* empty state */}
+            {!randomPick && !isRolling && (
+              <div className="glass-card flex flex-col items-center justify-center py-16 text-center">
+                <div className="text-5xl mb-4">🎲</div>
+                <h2 className="text-lg font-bold text-surface-300 mb-1">Ready to practice?</h2>
+                <p className="text-sm text-surface-500 max-w-xs">
+                  Set your filters and hit <strong className="text-indigo-400">Pick Random</strong> to get a question.
+                </p>
+              </div>
+            )}
+
+            {/* pick history */}
+            {pickHistory.length > 0 && (
+              <div>
+                <div className="flex items-center gap-3 mb-3">
+                  <h3 className="text-sm font-bold text-surface-300">Recent Picks</h3>
+                  <div className="flex-1 h-px bg-surface-700/40" />
+                  <button onClick={() => setPickHistory([])} className="text-[11px] text-surface-600 hover:text-surface-400 cursor-pointer transition-colors">
+                    Clear
+                  </button>
+                </div>
+                <div className="grid gap-2">
+                  {pickHistory.map((p, i) => (
+                    <div key={p.id}
+                      className="glass-card-inner flex items-center gap-4 px-4 py-3 group hover:bg-surface-700/30 transition-colors">
+                      <span className="text-surface-600 text-xs w-5 text-right tabular-nums">{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                            style={{ background: DIFF_BG[p.difficulty], color: DIFF_COLOR[p.difficulty] }}>
+                            {p.difficulty}
+                          </span>
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                            style={{ background: PATTERN_COLORS[p.pattern] + "1a", color: PATTERN_COLORS[p.pattern] }}>
+                            {p.pattern}
+                          </span>
                         </div>
-                        <div style={{ display: "flex", gap: 6 }}>
-                          {dueRevs.map(r => (
-                            <button key={r.i} onClick={() => toggleRevision(p.id, r.i)} style={{
-                              background: "#7f1d1d", border: "1px solid #f8717144", color: "#f87171", padding: "6px 14px", borderRadius: 8, fontSize: 12, cursor: "pointer", fontWeight: 600
-                            }}>✓ Rev {r.i + 1} Done</button>
+                        <a href={p.url} target="_blank" rel="noreferrer"
+                          className="text-sm font-medium text-surface-200 group-hover:text-white hover:underline decoration-1 underline-offset-2 transition-colors">
+                          {p.name}
+                        </a>
+                      </div>
+                      {progress[p.id] ? (
+                        <span className="text-emerald-400 text-[11px] font-medium">Solved</span>
+                      ) : (
+                        <button onClick={() => markSolved(p.id)} className="btn-success text-[11px] px-2.5 py-1">
+                          ✓ Solve
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ TODAY TAB ═══ */}
+        {tab === "today" && (
+          <div className="animate-fade-in">
+            {todayRevisions.length === 0 ? (
+              <div className="glass-card flex flex-col items-center justify-center py-20 text-center">
+                <div className="text-5xl mb-4">🎉</div>
+                <h2 className="text-lg font-bold text-surface-300 mb-1">All caught up!</h2>
+                <p className="text-sm text-surface-500 max-w-xs">
+                  No revisions due today. Keep solving problems to build your spaced-repetition schedule.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-base font-bold text-white">
+                    Due Today{" "}
+                    <span className="ml-2 text-xs font-semibold bg-red-500/15 text-red-400 px-2 py-0.5 rounded-full">
+                      {todayRevisions.length} problem{todayRevisions.length > 1 ? "s" : ""}
+                    </span>
+                  </h2>
+                </div>
+                {todayRevisions.map(p => {
+                  const pg = progress[p.id];
+                  const dueRevs = pg.revisions.map((r, i) => ({ ...r, i })).filter(r => !r.done && r.date <= todayStr);
+                  return (
+                    <div key={p.id} className="glass-card p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
+                            style={{ background: DIFF_BG[p.difficulty], color: DIFF_COLOR[p.difficulty] }}>
+                            {p.difficulty}
+                          </span>
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
+                            style={{ background: PATTERN_COLORS[p.pattern] + "1a", color: PATTERN_COLORS[p.pattern] }}>
+                            {p.pattern}
+                          </span>
+                        </div>
+                        <a href={p.url} target="_blank" rel="noreferrer"
+                          className="text-base font-semibold text-white hover:text-blue-400 transition-colors hover:underline decoration-1 underline-offset-2">
+                          {p.name}
+                        </a>
+                        <p className="text-xs text-surface-500 mt-1">Solved: {formatDate(pg.solvedDate)}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {dueRevs.map(r => (
+                          <button key={r.i} onClick={() => toggleRevision(p.id, r.i)}
+                            className="btn-danger text-xs px-4 py-2 flex items-center gap-1.5 hover:bg-red-600/40 active:scale-95 transition-all">
+                            ✓ Rev {r.i + 1} Done
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ UPCOMING TAB ═══ */}
+        {tab === "upcoming" && (
+          <div className="animate-fade-in">
+            {upcomingRevisions.length === 0 ? (
+              <div className="glass-card flex flex-col items-center justify-center py-20 text-center">
+                <div className="text-5xl mb-4">📅</div>
+                <h2 className="text-lg font-bold text-surface-300 mb-1">No upcoming revisions</h2>
+                <p className="text-sm text-surface-500 max-w-xs">
+                  Start solving problems to build your revision schedule.
+                </p>
+              </div>
+            ) : (
+              (() => {
+                const byDate: Record<string, typeof upcomingRevisions> = {};
+                upcomingRevisions.forEach(r => { (byDate[r.revDate] ??= []).push(r); });
+                return (
+                  <div className="space-y-8">
+                    {Object.entries(byDate).map(([date, items]) => (
+                      <section key={date}>
+                        {/* date header */}
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="text-sm font-bold text-white">{formatDate(date)}</div>
+                          <span className="text-xs text-surface-500 font-medium">{daysFromNow(date)}</span>
+                          <div className="flex-1 h-px bg-surface-700/40" />
+                          <span className="text-xs text-surface-600">
+                            {items.length} problem{items.length > 1 ? "s" : ""}
+                          </span>
+                        </div>
+                        {/* cards */}
+                        <div className="grid gap-2">
+                          {items.map(p => (
+                            <div key={`${p.id}-${p.rIdx}`}
+                              className="glass-card-inner flex items-center gap-4 px-4 py-3 group hover:bg-surface-700/30 transition-colors">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                                    style={{ background: DIFF_BG[p.difficulty], color: DIFF_COLOR[p.difficulty] }}>
+                                    {p.difficulty}
+                                  </span>
+                                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                                    style={{ background: PATTERN_COLORS[p.pattern] + "1a", color: PATTERN_COLORS[p.pattern] }}>
+                                    {p.pattern}
+                                  </span>
+                                  <span className="text-[10px] text-surface-600">Rev {p.rIdx + 1}</span>
+                                </div>
+                                <span className="text-sm font-medium text-surface-200 group-hover:text-white transition-colors">{p.name}</span>
+                              </div>
+                              <span className="text-xs font-semibold text-blue-400 whitespace-nowrap">{daysFromNow(p.revDate)}</span>
+                            </div>
                           ))}
                         </div>
-                      </div>
-                    );
-                  })}
-                </>
-              }
-            </div>
+                      </section>
+                    ))}
+                  </div>
+                );
+              })()
+            )}
           </div>
         )}
+      </main>
 
-        {/* UPCOMING TAB */}
-        {tab === "upcoming" && (
-          <div>
-            {upcomingRevisions.length === 0
-              ? <div style={{ textAlign: "center", padding: 60, color: "#475569" }}>
-                  <div style={{ fontSize: 40 }}>📅</div>
-                  <div style={{ marginTop: 12, fontSize: 16, color: "#64748b" }}>No upcoming revisions yet</div>
-                  <div style={{ marginTop: 6, fontSize: 13 }}>Start solving problems to build your revision schedule.</div>
-                </div>
-              : (() => {
-                  const byDate: Record<string, any[]> = {};
-                  upcomingRevisions.forEach(r => { if (!byDate[r.revDate]) byDate[r.revDate] = []; byDate[r.revDate].push(r); });
-                  return Object.entries(byDate).map(([date, items]: [string, any[]]) => (
-                    <div key={date} style={{ marginBottom: 20 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                        <div style={{ fontWeight: 700, color: "#f1f5f9" }}>{formatDate(date)}</div>
-                        <div style={{ fontSize: 12, color: "#64748b" }}>{daysFromNow(date)}</div>
-                        <div style={{ flex: 1, height: 1, background: "#334155" }} />
-                        <div style={{ fontSize: 12, color: "#475569" }}>{items.length} problem{items.length > 1 ? "s" : ""}</div>
-                      </div>
-                      {items.map(p => (
-                        <div key={`${p.id}-${p.rIdx}`} style={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 10, padding: "12px 16px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
-                              <span style={{ background: DIFF_BG[p.difficulty], color: DIFF_COLOR[p.difficulty], padding: "1px 7px", borderRadius: 8, fontSize: 11, fontWeight: 600 }}>{p.difficulty}</span>
-                              <span style={{ background: PATTERN_COLORS[p.pattern] + "22", color: PATTERN_COLORS[p.pattern], padding: "1px 7px", borderRadius: 8, fontSize: 11, fontWeight: 600 }}>{p.pattern}</span>
-                              <span style={{ fontSize: 11, color: "#475569" }}>Revision {p.rIdx + 1}</span>
-                            </div>
-                            <span style={{ color: "#e2e8f0", fontWeight: 500 }}>{p.name}</span>
-                          </div>
-                          <div style={{ fontSize: 12, color: "#60a5fa", fontWeight: 600 }}>{daysFromNow(p.revDate)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ));
-                })()
-            }
-          </div>
-        )}
-      </div>
+      {/* footer */}
+      <footer className="mt-12 pb-6 text-center text-[11px] text-surface-600">
+        Built for interview prep · Spaced repetition in {SPACED_DAYS.join(", ")} day intervals
+      </footer>
     </div>
   );
 }
