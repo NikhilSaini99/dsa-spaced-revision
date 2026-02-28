@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import type {
+  Problem,
   ProblemProgress,
   Revision,
   SolveRating,
@@ -8,12 +9,13 @@ import type {
   SortDir,
 } from "../types";
 import {
-  PROBLEMS,
   SPACED_DAYS,
   DIFF_BG,
   DIFF_COLOR,
   PATTERN_COLORS,
   RATING_OPTIONS,
+  SOURCE_COLORS,
+  TOPIC_COLORS,
 } from "../config";
 import { formatDate, daysFromNow, today, difficultyOrder } from "../utils";
 import { FilterBar } from "./FilterBar";
@@ -21,6 +23,9 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { RatingModal } from "./RatingModal";
 
 interface Props {
+  problems: Problem[];
+  allPatterns: string[];
+  allTopics: string[];
   progress: Record<number, ProblemProgress>;
   notesById: Record<number, string>;
   revealed: Record<number, boolean>;
@@ -30,9 +35,14 @@ interface Props {
   onToggleReveal: (id: number) => void;
   onOpenNotes: (id: number) => void;
   onUpdateRating: (id: number, rating: SolveRating) => void;
+  onEditProblem: (p: Problem) => void;
+  onDeleteProblem: (id: number) => void;
 }
 
 export function ProblemsTab({
+  problems,
+  allPatterns,
+  allTopics,
   progress,
   notesById,
   revealed,
@@ -42,10 +52,14 @@ export function ProblemsTab({
   onToggleReveal,
   onOpenNotes,
   onUpdateRating,
+  onEditProblem,
+  onDeleteProblem,
 }: Props) {
   const [filterScope, setFilterScope] = useState<ScopeFilter>("all");
   const [filterPattern, setFilterPattern] = useState("All");
   const [filterDiff, setFilterDiff] = useState("All");
+  const [filterSource, setFilterSource] = useState("All");
+  const [filterTopic, setFilterTopic] = useState("All");
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("id");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -74,11 +88,13 @@ export function ProblemsTab({
     }
   }, [popoverId]);
 
-  const filtered = PROBLEMS.filter((p) => {
+  const filtered = problems.filter((p) => {
     if (filterScope === "solved" && !progress[p.id]) return false;
     if (filterScope === "unsolved" && progress[p.id]) return false;
     if (filterPattern !== "All" && p.pattern !== filterPattern) return false;
     if (filterDiff !== "All" && p.difficulty !== filterDiff) return false;
+    if (filterSource !== "All" && p.source !== filterSource) return false;
+    if (filterTopic !== "All" && !p.topics.includes(filterTopic)) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
       if (!p.name.toLowerCase().includes(q)) return false;
@@ -132,11 +148,11 @@ export function ProblemsTab({
   const solvedCount = Object.keys(progress).length;
   const ratingProblem =
     ratingProblemId !== null
-      ? PROBLEMS.find((p) => p.id === ratingProblemId)
+      ? problems.find((p) => p.id === ratingProblemId)
       : null;
   const confirmProblem =
     confirmUnmarkId !== null
-      ? PROBLEMS.find((p) => p.id === confirmUnmarkId)
+      ? problems.find((p) => p.id === confirmUnmarkId)
       : null;
 
   const handleSolveClick = (id: number) => setRatingProblemId(id);
@@ -172,10 +188,16 @@ export function ProblemsTab({
         filterScope={filterScope}
         filterPattern={filterPattern}
         filterDiff={filterDiff}
+        filterSource={filterSource}
+        filterTopic={filterTopic}
         search={search}
+        patterns={allPatterns}
+        topics={allTopics}
         onScopeChange={setFilterScope}
         onPatternChange={setFilterPattern}
         onDiffChange={setFilterDiff}
+        onSourceChange={setFilterSource}
+        onTopicChange={setFilterTopic}
         onSearchChange={setSearch}
       />
 
@@ -214,6 +236,8 @@ export function ProblemsTab({
                     ["name", "Problem"],
                     ["difficulty", "Difficulty"],
                     ["pattern", "Pattern"],
+                    [null, "Source"],
+                    [null, "Topics"],
                     ["status", "Status"],
                     [null, "Spaced Repetition"],
                     [null, "Rating"],
@@ -305,6 +329,57 @@ export function ProblemsTab({
                         >
                           <span aria-hidden="true">👁</span> Reveal
                         </button>
+                      )}
+                    </td>
+                    {/* source */}
+                    <td className="px-4 py-3">
+                      <span
+                        className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                        style={{
+                          background: (SOURCE_COLORS[p.source] || "#3b82f6") + "18",
+                          color: SOURCE_COLORS[p.source] || "#3b82f6",
+                        }}
+                      >
+                        {p.source}
+                      </span>
+                    </td>
+                    {/* topics */}
+                    <td className="px-4 py-3">
+                      {p.topics.length > 0 ? (
+                        <div className="flex items-center gap-1 relative group/topics">
+                          <span
+                            className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap"
+                            style={{
+                              background: (TOPIC_COLORS[p.topics[0]] || "#94a3b8") + "18",
+                              color: TOPIC_COLORS[p.topics[0]] || "#94a3b8",
+                            }}
+                          >
+                            {p.topics[0]}
+                          </span>
+                          {p.topics.length > 1 && (
+                            <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-surface-700/80 text-surface-300 cursor-default">
+                              +{p.topics.length - 1}
+                            </span>
+                          )}
+                          {p.topics.length > 1 && (
+                            <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover/topics:flex flex-wrap gap-1 glass-card p-2 min-w-max animate-fade-in">
+                              {p.topics.map((t) => (
+                                <span
+                                  key={t}
+                                  className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap"
+                                  style={{
+                                    background: (TOPIC_COLORS[t] || "#94a3b8") + "18",
+                                    color: TOPIC_COLORS[t] || "#94a3b8",
+                                  }}
+                                >
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-surface-700 text-[10px]">—</span>
                       )}
                     </td>
                     {/* status */}
@@ -533,23 +608,45 @@ export function ProblemsTab({
                     </td>
                     {/* actions */}
                     <td className="px-4 py-3">
-                      {!solved ? (
-                        <button
-                          onClick={() => handleSolveClick(p.id)}
-                          className="btn-success text-[11px] px-3 py-1.5"
-                          aria-label={`Mark ${p.name} as solved`}
-                        >
-                          ✓ Solved
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleUnmarkClick(p.id)}
-                          className="btn-ghost text-[11px] px-3 py-1.5"
-                          aria-label={`Unmark ${p.name} as solved`}
-                        >
-                          ↩ Undo
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {!solved ? (
+                          <button
+                            onClick={() => handleSolveClick(p.id)}
+                            className="btn-success text-[11px] px-3 py-1.5"
+                            aria-label={`Mark ${p.name} as solved`}
+                          >
+                            ✓ Solved
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleUnmarkClick(p.id)}
+                            className="btn-ghost text-[11px] px-3 py-1.5"
+                            aria-label={`Unmark ${p.name} as solved`}
+                          >
+                            ↩ Undo
+                          </button>
+                        )}
+                        {!p.builtIn && (
+                          <>
+                            <button
+                              onClick={() => onEditProblem(p)}
+                              className="w-7 h-7 rounded-lg bg-surface-700/60 text-surface-400 hover:bg-surface-600/80 hover:text-blue-400 flex items-center justify-center text-xs transition-colors cursor-pointer"
+                              title="Edit problem"
+                              aria-label={`Edit ${p.name}`}
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => onDeleteProblem(p.id)}
+                              className="w-7 h-7 rounded-lg bg-surface-700/60 text-surface-400 hover:bg-surface-600/80 hover:text-red-400 flex items-center justify-center text-xs transition-colors cursor-pointer"
+                              title="Delete problem"
+                              aria-label={`Delete ${p.name}`}
+                            >
+                              🗑️
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -560,10 +657,10 @@ export function ProblemsTab({
         {/* bottom bar */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-surface-700/30 bg-surface-900/40">
           <span className="text-xs text-surface-500">
-            Showing {sorted.length} of {PROBLEMS.length} problems
+            Showing {sorted.length} of {problems.length} problems
           </span>
           <span className="text-xs text-surface-500">
-            {solvedCount} solved · {PROBLEMS.length - solvedCount} remaining
+            {solvedCount} solved · {problems.length - solvedCount} remaining
           </span>
         </div>
       </div>
@@ -643,6 +740,35 @@ export function ProblemsTab({
                         }
                       </span>
                     )}
+                    <span
+                      className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                      style={{
+                        background: (SOURCE_COLORS[p.source] || "#3b82f6") + "18",
+                        color: SOURCE_COLORS[p.source] || "#3b82f6",
+                      }}
+                    >
+                      {p.source}
+                    </span>
+                    {p.topics.slice(0, 2).map((t) => (
+                      <span
+                        key={t}
+                        className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium"
+                        style={{
+                          background: (TOPIC_COLORS[t] || "#94a3b8") + "18",
+                          color: TOPIC_COLORS[t] || "#94a3b8",
+                        }}
+                      >
+                        {t}
+                      </span>
+                    ))}
+                    {p.topics.length > 2 && (
+                      <span
+                        className="inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-surface-700/80 text-surface-300"
+                        title={p.topics.slice(2).join(", ")}
+                      >
+                        +{p.topics.length - 2}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5 shrink-0">
@@ -667,6 +793,24 @@ export function ProblemsTab({
                   >
                     📝 {notesById[p.id] ? "Edit" : "Notes"}
                   </button>
+                  {!p.builtIn && (
+                    <div className="flex gap-1 justify-center">
+                      <button
+                        onClick={() => onEditProblem(p)}
+                        className="text-[10px] text-surface-500 hover:text-blue-400 transition-colors cursor-pointer"
+                        aria-label={`Edit ${p.name}`}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => onDeleteProblem(p.id)}
+                        className="text-[10px] text-surface-500 hover:text-red-400 transition-colors cursor-pointer"
+                        aria-label={`Delete ${p.name}`}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
               {solved && (
@@ -702,7 +846,7 @@ export function ProblemsTab({
         })}
         <div className="text-center py-3">
           <span className="text-xs text-surface-500">
-            Showing {sorted.length} of {PROBLEMS.length} · {solvedCount}{" "}
+            Showing {sorted.length} of {problems.length} · {solvedCount}{" "}
             solved
           </span>
         </div>

@@ -1,15 +1,16 @@
-import type { ProblemProgress } from "../types";
-import { PROBLEMS, DIFF_BG, DIFF_COLOR, PATTERN_COLORS } from "../config";
+import type { Problem, ProblemProgress } from "../types";
+import { DIFF_BG, DIFF_COLOR, PATTERN_COLORS } from "../config";
 import { formatDate, today } from "../utils";
 
 interface Props {
+  problems: Problem[];
   progress: Record<number, ProblemProgress>;
   onToggleRevision: (id: number, rIdx: number) => void;
 }
 
-export function TodayTab({ progress, onToggleRevision }: Props) {
+export function TodayTab({ problems, progress, onToggleRevision }: Props) {
   const todayStr = today();
-  const todayRevisions = PROBLEMS.filter((p) => {
+  const todayRevisions = problems.filter((p) => {
     const pg = progress[p.id];
     return pg && pg.revisions.some((r) => !r.done && r.date <= todayStr);
   });

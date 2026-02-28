@@ -1,16 +1,17 @@
-import type { ProblemProgress } from "../types";
-import { PROBLEMS, DIFF_BG, DIFF_COLOR, PATTERN_COLORS } from "../config";
+import type { Problem, ProblemProgress } from "../types";
+import { DIFF_BG, DIFF_COLOR, PATTERN_COLORS } from "../config";
 import { formatDate, daysFromNow, today } from "../utils";
 
 interface Props {
+  problems: Problem[];
   progress: Record<number, ProblemProgress>;
   revealed: Record<number, boolean>;
   onToggleReveal: (id: number) => void;
 }
 
-export function UpcomingTab({ progress, revealed, onToggleReveal }: Props) {
+export function UpcomingTab({ problems, progress, revealed, onToggleReveal }: Props) {
   const todayStr = today();
-  const upcomingRevisions = PROBLEMS.flatMap((p) => {
+  const upcomingRevisions = problems.flatMap((p) => {
     const pg = progress[p.id];
     if (!pg) return [];
     return pg.revisions
