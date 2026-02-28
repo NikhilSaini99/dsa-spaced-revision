@@ -38,6 +38,9 @@ function daysFromNow(dateStr: string): string {
 interface Revision { date: string; done: boolean }
 interface ProblemProgress { solvedDate: string; revisions: Revision[] }
 
+const PROGRESS_STORAGE_KEY = "dsa-progress";
+const NOTES_STORAGE_KEY = "dsa-notes";
+
 /* ── tiny reusable bits ──────────────────────────────────── */
 function ProgressRing({ pct, size = 44, stroke = 4, color }: { pct: number; size?: number; stroke?: number; color: string }) {
   const r = (size - stroke) / 2;
@@ -56,11 +59,13 @@ function ProgressRing({ pct, size = 44, stroke = 4, color }: { pct: number; size
 export default function App() {
   const [tab, setTab] = useState("problems");
   const [progress, setProgress] = useState<Record<number, ProblemProgress>>({});
+  const [notesById, setNotesById] = useState<Record<number, string>>({});
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const [filterPattern, setFilterPattern] = useState("All");
   const [filterDiff, setFilterDiff] = useState("All");
   const [loaded, setLoaded] = useState(false);
   const [popoverId, setPopoverId] = useState<number | null>(null);
+  const [notesModalId, setNotesModalId] = useState<number | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   /* ── random picker state ── */
@@ -72,6 +77,8 @@ export default function App() {
   const [isRolling, setIsRolling] = useState(false);
   const [pickRevealed, setPickRevealed] = useState(false);
   const rollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const notesSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notesRef = useRef<Record<number, string>>({});
 
   /* close popover on outside click */
   useEffect(() => {
@@ -87,16 +94,70 @@ export default function App() {
   /* load from localStorage */
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("dsa-progress");
+      const stored = localStorage.getItem(PROGRESS_STORAGE_KEY);
       if (stored) setProgress(JSON.parse(stored));
+    } catch (_) {}
+    try {
+      const storedNotes = localStorage.getItem(NOTES_STORAGE_KEY);
+      if (storedNotes) {
+        const parsed = JSON.parse(storedNotes) as Record<number, string>;
+        setNotesById(parsed);
+        notesRef.current = parsed;
+      }
     } catch (_) {}
     setLoaded(true);
   }, []);
 
   function save(next: Record<number, ProblemProgress>) {
     setProgress(next);
-    try { localStorage.setItem("dsa-progress", JSON.stringify(next)); } catch (_) {}
+    try { localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(next)); } catch (_) {}
   }
+  const persistNotes = useCallback((next: Record<number, string>) => {
+    try { localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(next)); } catch (_) {}
+  }, []);
+  const flushNotesSave = useCallback((next?: Record<number, string>) => {
+    if (notesSaveTimeoutRef.current) {
+      clearTimeout(notesSaveTimeoutRef.current);
+      notesSaveTimeoutRef.current = null;
+    }
+    const payload = next ?? notesRef.current;
+    persistNotes(payload);
+  }, [persistNotes]);
+  const scheduleNotesSave = useCallback((next: Record<number, string>) => {
+    notesRef.current = next;
+    if (notesSaveTimeoutRef.current) clearTimeout(notesSaveTimeoutRef.current);
+    notesSaveTimeoutRef.current = setTimeout(() => {
+      persistNotes(notesRef.current);
+      notesSaveTimeoutRef.current = null;
+    }, 450);
+  }, [persistNotes]);
+  function updateNote(id: number, value: string) {
+    setNotesById(prev => {
+      const next = { ...prev };
+      if (value.trim()) next[id] = value;
+      else delete next[id];
+      scheduleNotesSave(next);
+      return next;
+    });
+  }
+  useEffect(() => {
+    function handlePageHide() {
+      flushNotesSave();
+    }
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      flushNotesSave();
+    };
+  }, [flushNotesSave]);
+  useEffect(() => {
+    if (notesModalId === null) return;
+    function handleEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") setNotesModalId(null);
+    }
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [notesModalId]);
   function markSolved(id: number) {
     if (progress[id]?.solvedDate) return;
     const td = today();
@@ -172,6 +233,7 @@ export default function App() {
       (filterPattern === "All" || p.pattern === filterPattern) &&
       (filterDiff === "All" || p.difficulty === filterDiff)
   );
+  const activeNotesProblem = notesModalId !== null ? PROBLEMS.find(p => p.id === notesModalId) ?? null : null;
 
   if (!loaded)
     return (
@@ -325,7 +387,7 @@ export default function App() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-surface-900/70">
-                      {["#", "Problem", "Difficulty", "Pattern", "Status", "Spaced Repetition", "Actions"].map(h => (
+                      {["#", "Problem", "Difficulty", "Pattern", "Status", "Spaced Repetition", "Notes", "Actions"].map(h => (
                         <th key={h} className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-surface-500 whitespace-nowrap first:rounded-tl-2xl last:rounded-tr-2xl">
                           {h}
                         </th>
@@ -478,6 +540,17 @@ export default function App() {
                             ) : (
                               <span className="text-surface-700 text-xs">—</span>
                             )}
+                          </td>
+                          {/* notes */}
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => setNotesModalId(p.id)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-surface-700/60 bg-surface-800/70 px-2.5 py-1.5 text-[11px] text-surface-300 hover:text-white hover:border-surface-600 hover:bg-surface-700/70 transition-colors cursor-pointer"
+                              title={notesById[p.id] ? "Edit notes" : "Add notes"}
+                            >
+                              <span>📝</span>
+                              <span>{notesById[p.id] ? "Edit" : "Add"}</span>
+                            </button>
                           </td>
                           {/* actions */}
                           <td className="px-4 py-3">
@@ -671,10 +744,6 @@ export default function App() {
                             style={{ background: DIFF_BG[p.difficulty], color: DIFF_COLOR[p.difficulty] }}>
                             {p.difficulty}
                           </span>
-                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                            style={{ background: PATTERN_COLORS[p.pattern] + "1a", color: PATTERN_COLORS[p.pattern] }}>
-                            {p.pattern}
-                          </span>
                         </div>
                         <a href={p.url} target="_blank" rel="noreferrer"
                           className="text-sm font-medium text-surface-200 group-hover:text-white hover:underline decoration-1 underline-offset-2 transition-colors">
@@ -815,6 +884,78 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {notesModalId !== null && activeNotesProblem && (
+        <div
+          className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-sm flex items-center justify-center px-4"
+          onClick={() => setNotesModalId(null)}
+        >
+          <div
+            className="glass-card w-full max-w-2xl p-5"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="min-w-0">
+                <div className="text-[11px] uppercase tracking-wider text-surface-500 font-semibold">Notes</div>
+                <h3 className="text-base font-bold text-white leading-tight mt-1">{activeNotesProblem.name}</h3>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold"
+                    style={{ background: DIFF_BG[activeNotesProblem.difficulty], color: DIFF_COLOR[activeNotesProblem.difficulty] }}>
+                    {activeNotesProblem.difficulty}
+                  </span>
+                  <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold"
+                    style={{ background: PATTERN_COLORS[activeNotesProblem.pattern] + "1a", color: PATTERN_COLORS[activeNotesProblem.pattern] }}>
+                    {activeNotesProblem.pattern}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setNotesModalId(null)}
+                className="h-8 w-8 rounded-lg bg-surface-700/60 text-surface-400 hover:bg-surface-600/80 hover:text-surface-200 transition-colors cursor-pointer"
+                aria-label="Close notes modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <textarea
+              value={notesById[activeNotesProblem.id] ?? ""}
+              onChange={e => updateNote(activeNotesProblem.id, e.target.value)}
+              onBlur={() => flushNotesSave()}
+              rows={10}
+              maxLength={2000}
+              placeholder="Write your approach, edge cases, dry run, and mistakes to avoid..."
+              className="w-full rounded-xl border border-surface-700/60 bg-surface-900/70 px-3 py-2.5 text-sm text-surface-200 placeholder:text-surface-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/40"
+            />
+
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-[11px] text-surface-500">
+                {(notesById[activeNotesProblem.id] ?? "").length}/2000
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    updateNote(activeNotesProblem.id, "");
+                    flushNotesSave();
+                  }}
+                  className="btn-ghost text-xs px-3 py-1.5"
+                >
+                  Clear
+                </button>
+                <button
+                  onClick={() => {
+                    flushNotesSave();
+                    setNotesModalId(null);
+                  }}
+                  className="btn-primary text-xs px-3 py-1.5"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* footer */}
       <footer className="mt-12 pb-6 text-center text-[11px] text-surface-600">
