@@ -1,0 +1,731 @@
+import { useState, useRef, useEffect } from "react";
+import type {
+  ProblemProgress,
+  Revision,
+  SolveRating,
+  ScopeFilter,
+  SortKey,
+  SortDir,
+} from "../types";
+import {
+  PROBLEMS,
+  SPACED_DAYS,
+  DIFF_BG,
+  DIFF_COLOR,
+  PATTERN_COLORS,
+  RATING_OPTIONS,
+} from "../config";
+import { formatDate, daysFromNow, today, difficultyOrder } from "../utils";
+import { FilterBar } from "./FilterBar";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { RatingModal } from "./RatingModal";
+
+interface Props {
+  progress: Record<number, ProblemProgress>;
+  notesById: Record<number, string>;
+  revealed: Record<number, boolean>;
+  onMarkSolved: (id: number, rating?: SolveRating) => void;
+  onToggleRevision: (id: number, rIdx: number) => void;
+  onUnmark: (id: number) => void;
+  onToggleReveal: (id: number) => void;
+  onOpenNotes: (id: number) => void;
+  onUpdateRating: (id: number, rating: SolveRating) => void;
+}
+
+export function ProblemsTab({
+  progress,
+  notesById,
+  revealed,
+  onMarkSolved,
+  onToggleRevision,
+  onUnmark,
+  onToggleReveal,
+  onOpenNotes,
+  onUpdateRating,
+}: Props) {
+  const [filterScope, setFilterScope] = useState<ScopeFilter>("all");
+  const [filterPattern, setFilterPattern] = useState("All");
+  const [filterDiff, setFilterDiff] = useState("All");
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("id");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [popoverId, setPopoverId] = useState<number | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Rating modal
+  const [ratingProblemId, setRatingProblemId] = useState<number | null>(null);
+  // Confirm dialog
+  const [confirmUnmarkId, setConfirmUnmarkId] = useState<number | null>(null);
+
+  const todayStr = today();
+
+  /* close popover on outside click */
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(e.target as Node)
+      )
+        setPopoverId(null);
+    }
+    if (popoverId !== null) {
+      document.addEventListener("mousedown", handleClick);
+      return () => document.removeEventListener("mousedown", handleClick);
+    }
+  }, [popoverId]);
+
+  const filtered = PROBLEMS.filter((p) => {
+    if (filterScope === "solved" && !progress[p.id]) return false;
+    if (filterScope === "unsolved" && progress[p.id]) return false;
+    if (filterPattern !== "All" && p.pattern !== filterPattern) return false;
+    if (filterDiff !== "All" && p.difficulty !== filterDiff) return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      if (!p.name.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    switch (sortKey) {
+      case "id":
+        cmp = a.id - b.id;
+        break;
+      case "name":
+        cmp = a.name.localeCompare(b.name);
+        break;
+      case "difficulty":
+        cmp = difficultyOrder(a.difficulty) - difficultyOrder(b.difficulty);
+        break;
+      case "pattern":
+        cmp = a.pattern.localeCompare(b.pattern);
+        break;
+      case "status": {
+        const aS = progress[a.id] ? 1 : 0;
+        const bS = progress[b.id] ? 1 : 0;
+        cmp = aS - bS;
+        break;
+      }
+    }
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const sortIndicator = (key: SortKey) => {
+    if (sortKey !== key)
+      return <span className="text-surface-700 ml-1">⇅</span>;
+    return (
+      <span className="text-blue-400 ml-1">
+        {sortDir === "asc" ? "↑" : "↓"}
+      </span>
+    );
+  };
+
+  const solvedCount = Object.keys(progress).length;
+  const ratingProblem =
+    ratingProblemId !== null
+      ? PROBLEMS.find((p) => p.id === ratingProblemId)
+      : null;
+  const confirmProblem =
+    confirmUnmarkId !== null
+      ? PROBLEMS.find((p) => p.id === confirmUnmarkId)
+      : null;
+
+  const handleSolveClick = (id: number) => setRatingProblemId(id);
+
+  const handleRating = (rating: SolveRating) => {
+    if (ratingProblemId !== null) {
+      if (progress[ratingProblemId]) {
+        onUpdateRating(ratingProblemId, rating);
+      } else {
+        onMarkSolved(ratingProblemId, rating);
+      }
+    }
+    setRatingProblemId(null);
+  };
+
+  const handleRatingSkip = () => {
+    if (ratingProblemId !== null && !progress[ratingProblemId]) {
+      onMarkSolved(ratingProblemId);
+    }
+    setRatingProblemId(null);
+  };
+
+  const handleUnmarkClick = (id: number) => setConfirmUnmarkId(id);
+
+  const handleConfirmUnmark = () => {
+    if (confirmUnmarkId !== null) onUnmark(confirmUnmarkId);
+    setConfirmUnmarkId(null);
+  };
+
+  return (
+    <div className="space-y-5">
+      <FilterBar
+        filterScope={filterScope}
+        filterPattern={filterPattern}
+        filterDiff={filterDiff}
+        search={search}
+        onScopeChange={setFilterScope}
+        onPatternChange={setFilterPattern}
+        onDiffChange={setFilterDiff}
+        onSearchChange={setSearch}
+      />
+
+      {/* Pattern-blind notice */}
+      <div
+        className="glass-card-inner flex items-center gap-3 px-4 py-3 text-sm text-surface-400"
+        role="note"
+      >
+        <span className="text-xl" aria-hidden="true">
+          🙈
+        </span>
+        <span>
+          Patterns are{" "}
+          <strong className="text-surface-100">hidden by default</strong>. Try
+          to identify the pattern yourself, then tap{" "}
+          <strong className="text-indigo-400">Reveal</strong> to verify.
+          <span className="hidden sm:inline text-surface-600 ml-2">
+            Shortcuts: 1-4 switch tabs, R picks random
+          </span>
+        </span>
+      </div>
+
+      {/* ── DESKTOP TABLE ── */}
+      <div className="glass-card overflow-hidden hidden md:block">
+        <div className="overflow-x-auto">
+          <table
+            className="w-full text-sm"
+            role="table"
+            aria-label="Problems list"
+          >
+            <thead>
+              <tr className="bg-surface-900/70">
+                {(
+                  [
+                    ["id", "#"],
+                    ["name", "Problem"],
+                    ["difficulty", "Difficulty"],
+                    ["pattern", "Pattern"],
+                    ["status", "Status"],
+                    [null, "Spaced Repetition"],
+                    [null, "Rating"],
+                    [null, "Notes"],
+                    [null, "Actions"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <th
+                    key={label}
+                    className={`px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-surface-500 whitespace-nowrap first:rounded-tl-2xl last:rounded-tr-2xl ${key ? "cursor-pointer hover:text-surface-300 select-none transition-colors" : ""}`}
+                    onClick={key ? () => toggleSort(key as SortKey) : undefined}
+                    scope="col"
+                    aria-sort={
+                      key && sortKey === (key as SortKey)
+                        ? sortDir === "asc"
+                          ? "ascending"
+                          : "descending"
+                        : undefined
+                    }
+                  >
+                    {label}
+                    {key ? sortIndicator(key as SortKey) : null}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-700/30">
+              {sorted.map((p, i) => {
+                const pg = progress[p.id];
+                const solved = !!pg;
+                return (
+                  <tr key={p.id} className="table-row group">
+                    {/* # */}
+                    <td className="px-4 py-3 text-surface-500 text-xs tabular-nums">
+                      {i + 1}
+                    </td>
+                    {/* name */}
+                    <td className="px-4 py-3">
+                      <a
+                        href={p.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={`font-medium hover:underline decoration-1 underline-offset-2 ${solved ? "text-emerald-400" : "text-surface-100 group-hover:text-white"}`}
+                        aria-label={`${p.name} on LeetCode${solved ? " (solved)" : ""}`}
+                      >
+                        {solved && (
+                          <span className="mr-1" aria-hidden="true">
+                            ✓
+                          </span>
+                        )}
+                        {p.name}
+                      </a>
+                    </td>
+                    {/* difficulty */}
+                    <td className="px-4 py-3">
+                      <span
+                        className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
+                        style={{
+                          background: DIFF_BG[p.difficulty],
+                          color: DIFF_COLOR[p.difficulty],
+                        }}
+                      >
+                        {p.difficulty}
+                      </span>
+                    </td>
+                    {/* pattern */}
+                    <td className="px-4 py-3">
+                      {revealed[p.id] ? (
+                        <button
+                          onClick={() => onToggleReveal(p.id)}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold cursor-pointer transition-colors"
+                          style={{
+                            background:
+                              PATTERN_COLORS[p.pattern] + "1a",
+                            color: PATTERN_COLORS[p.pattern],
+                          }}
+                          aria-label={`Pattern revealed: ${p.pattern}. Click to hide.`}
+                        >
+                          {p.pattern}{" "}
+                          <span className="opacity-60" aria-hidden="true">
+                            ✕
+                          </span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => onToggleReveal(p.id)}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium cursor-pointer bg-surface-700/60 text-surface-400 hover:bg-surface-600/60 hover:text-surface-200 transition-colors"
+                          aria-label={`Reveal pattern for ${p.name}`}
+                        >
+                          <span aria-hidden="true">👁</span> Reveal
+                        </button>
+                      )}
+                    </td>
+                    {/* status */}
+                    <td className="px-4 py-3">
+                      {solved ? (
+                        <span className="text-emerald-400 text-xs font-medium flex items-center gap-1">
+                          <span
+                            className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"
+                            aria-hidden="true"
+                          />
+                          {formatDate(pg.solvedDate)}
+                        </span>
+                      ) : (
+                        <span className="text-surface-600 text-xs">
+                          Unsolved
+                        </span>
+                      )}
+                    </td>
+                    {/* spaced repetition */}
+                    <td className="px-4 py-3 relative">
+                      {solved ? (
+                        <div className="relative">
+                          <div className="flex items-center gap-1.5">
+                            {pg.revisions.map(
+                              (r: Revision, idx: number) => {
+                                const overdue =
+                                  !r.done && r.date <= todayStr;
+                                return (
+                                  <button
+                                    key={idx}
+                                    onClick={() =>
+                                      onToggleRevision(p.id, idx)
+                                    }
+                                    title={`Rev ${idx + 1}: ${formatDate(r.date)} — ${r.done ? "Done" : overdue ? "Overdue!" : daysFromNow(r.date)}`}
+                                    className={`revision-dot ${
+                                      r.done
+                                        ? "bg-emerald-900/50 text-emerald-400 border-emerald-500/30 hover:border-emerald-400/60"
+                                        : overdue
+                                          ? "bg-red-900/50 text-red-400 border-red-500/30 hover:border-red-400/60 animate-pulse-soft"
+                                          : "bg-blue-900/40 text-blue-400 border-blue-500/25 hover:border-blue-400/60"
+                                    }`}
+                                    aria-label={`Revision ${idx + 1}: ${r.done ? "Completed" : overdue ? "Overdue" : daysFromNow(r.date)}`}
+                                  >
+                                    <span className="text-[10px] leading-none">
+                                      {r.done ? "✓" : `R${idx + 1}`}
+                                    </span>
+                                    <span className="text-[7px] opacity-60 leading-none">
+                                      {formatDate(r.date).replace(
+                                        " ",
+                                        "/"
+                                      )}
+                                    </span>
+                                  </button>
+                                );
+                              }
+                            )}
+                            {/* info button */}
+                            <button
+                              onClick={() =>
+                                setPopoverId(
+                                  popoverId === p.id ? null : p.id
+                                )
+                              }
+                              className="w-7 h-7 rounded-lg bg-surface-700/60 text-surface-400 hover:bg-surface-600/80 hover:text-surface-200 flex items-center justify-center text-xs transition-colors cursor-pointer"
+                              aria-label="Show revision details"
+                            >
+                              ℹ
+                            </button>
+                          </div>
+
+                          {/* popover */}
+                          {popoverId === p.id && (
+                            <div
+                              ref={popoverRef}
+                              className="absolute top-11 left-0 z-50 glass-card p-4 min-w-[280px] animate-slide-up"
+                              role="dialog"
+                              aria-label="Revision schedule"
+                            >
+                              <div className="font-bold text-sm text-white mb-1">
+                                Revision Schedule
+                              </div>
+                              <p className="text-xs text-surface-500 mb-3">
+                                Solved on {formatDate(pg.solvedDate)} ·{" "}
+                                {
+                                  pg.revisions.filter(
+                                    (r: Revision) => r.done
+                                  ).length
+                                }
+                                /{pg.revisions.length} done
+                              </p>
+                              <div className="space-y-1.5">
+                                {pg.revisions.map(
+                                  (r: Revision, idx: number) => {
+                                    const overdue =
+                                      !r.done && r.date <= todayStr;
+                                    return (
+                                      <div
+                                        key={idx}
+                                        className={`flex items-center justify-between rounded-lg px-3 py-2 ${
+                                          r.done
+                                            ? "bg-emerald-900/20"
+                                            : overdue
+                                              ? "bg-red-900/20"
+                                              : "bg-blue-900/15"
+                                        }`}
+                                      >
+                                        <div>
+                                          <div
+                                            className={`text-xs font-semibold ${r.done ? "text-emerald-400" : overdue ? "text-red-400" : "text-blue-400"}`}
+                                          >
+                                            Rev {idx + 1} — Day +
+                                            {SPACED_DAYS[idx]}
+                                          </div>
+                                          <div className="text-[11px] text-surface-500">
+                                            {formatDate(r.date)} ·{" "}
+                                            {r.done
+                                              ? "Completed"
+                                              : overdue
+                                                ? "Overdue!"
+                                                : daysFromNow(r.date)}
+                                          </div>
+                                        </div>
+                                        <button
+                                          onClick={() =>
+                                            onToggleRevision(p.id, idx)
+                                          }
+                                          className={`text-[11px] font-semibold px-2.5 py-1 rounded-md cursor-pointer transition-colors ${
+                                            r.done
+                                              ? "bg-emerald-900/40 text-emerald-400 hover:bg-emerald-900/60 border border-emerald-500/20"
+                                              : overdue
+                                                ? "bg-red-900/40 text-red-400 hover:bg-red-900/60 border border-red-500/20"
+                                                : "bg-blue-900/40 text-blue-400 hover:bg-blue-900/60 border border-blue-500/20"
+                                          }`}
+                                          aria-label={
+                                            r.done
+                                              ? `Undo revision ${idx + 1}`
+                                              : `Mark revision ${idx + 1} done`
+                                          }
+                                        >
+                                          {r.done ? "↩ Undo" : "✓ Done"}
+                                        </button>
+                                      </div>
+                                    );
+                                  }
+                                )}
+                              </div>
+                              <button
+                                onClick={() => setPopoverId(null)}
+                                className="mt-3 w-full text-xs text-surface-500 hover:text-surface-300 border border-surface-700/50 rounded-lg py-1.5 cursor-pointer transition-colors"
+                              >
+                                Close
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span
+                          className="text-surface-700 text-xs"
+                          aria-label="No revisions"
+                        >
+                          —
+                        </span>
+                      )}
+                    </td>
+                    {/* rating */}
+                    <td className="px-4 py-3">
+                      {solved && pg.rating ? (
+                        <button
+                          onClick={() => setRatingProblemId(p.id)}
+                          className="inline-flex items-center gap-1 text-[11px] cursor-pointer hover:opacity-80 transition-opacity"
+                          style={{
+                            color: RATING_OPTIONS.find(
+                              (o) => o.key === pg.rating
+                            )?.color,
+                          }}
+                          aria-label={`Rating: ${RATING_OPTIONS.find((o) => o.key === pg.rating)?.label}. Click to change.`}
+                        >
+                          <span>
+                            {
+                              RATING_OPTIONS.find(
+                                (o) => o.key === pg.rating
+                              )?.emoji
+                            }
+                          </span>
+                          <span className="font-semibold">
+                            {
+                              RATING_OPTIONS.find(
+                                (o) => o.key === pg.rating
+                              )?.label
+                            }
+                          </span>
+                        </button>
+                      ) : solved ? (
+                        <button
+                          onClick={() => setRatingProblemId(p.id)}
+                          className="text-[11px] text-surface-600 hover:text-surface-400 cursor-pointer transition-colors"
+                          aria-label={`Rate ${p.name}`}
+                        >
+                          Rate
+                        </button>
+                      ) : (
+                        <span className="text-surface-700 text-xs">
+                          —
+                        </span>
+                      )}
+                    </td>
+                    {/* notes */}
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => onOpenNotes(p.id)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-surface-700/60 bg-surface-800/70 px-2.5 py-1.5 text-[11px] text-surface-300 hover:text-white hover:border-surface-600 hover:bg-surface-700/70 transition-colors cursor-pointer"
+                        title={
+                          notesById[p.id] ? "Edit notes" : "Add notes"
+                        }
+                        aria-label={
+                          notesById[p.id]
+                            ? `Edit notes for ${p.name}`
+                            : `Add notes for ${p.name}`
+                        }
+                      >
+                        <span aria-hidden="true">📝</span>
+                        <span>
+                          {notesById[p.id] ? "Edit" : "Add"}
+                        </span>
+                      </button>
+                    </td>
+                    {/* actions */}
+                    <td className="px-4 py-3">
+                      {!solved ? (
+                        <button
+                          onClick={() => handleSolveClick(p.id)}
+                          className="btn-success text-[11px] px-3 py-1.5"
+                          aria-label={`Mark ${p.name} as solved`}
+                        >
+                          ✓ Solved
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleUnmarkClick(p.id)}
+                          className="btn-ghost text-[11px] px-3 py-1.5"
+                          aria-label={`Unmark ${p.name} as solved`}
+                        >
+                          ↩ Undo
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {/* bottom bar */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-surface-700/30 bg-surface-900/40">
+          <span className="text-xs text-surface-500">
+            Showing {sorted.length} of {PROBLEMS.length} problems
+          </span>
+          <span className="text-xs text-surface-500">
+            {solvedCount} solved · {PROBLEMS.length - solvedCount} remaining
+          </span>
+        </div>
+      </div>
+
+      {/* ── MOBILE CARD LAYOUT ── */}
+      <div className="md:hidden space-y-3">
+        {sorted.map((p) => {
+          const pg = progress[p.id];
+          const solved = !!pg;
+          return (
+            <div key={p.id} className="glass-card p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <a
+                    href={p.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`font-semibold text-sm hover:underline decoration-1 underline-offset-2 block ${solved ? "text-emerald-400" : "text-surface-100"}`}
+                    aria-label={`${p.name} on LeetCode`}
+                  >
+                    {solved && (
+                      <span className="mr-1" aria-hidden="true">
+                        ✓
+                      </span>
+                    )}
+                    {p.name}
+                  </a>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span
+                      className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                      style={{
+                        background: DIFF_BG[p.difficulty],
+                        color: DIFF_COLOR[p.difficulty],
+                      }}
+                    >
+                      {p.difficulty}
+                    </span>
+                    {revealed[p.id] ? (
+                      <button
+                        onClick={() => onToggleReveal(p.id)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold cursor-pointer"
+                        style={{
+                          background:
+                            PATTERN_COLORS[p.pattern] + "1a",
+                          color: PATTERN_COLORS[p.pattern],
+                        }}
+                      >
+                        {p.pattern}{" "}
+                        <span className="opacity-60">✕</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onToggleReveal(p.id)}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium cursor-pointer bg-surface-700/60 text-surface-400"
+                      >
+                        👁 Reveal
+                      </button>
+                    )}
+                    {solved && pg.rating && (
+                      <span
+                        className="text-[10px] font-semibold"
+                        style={{
+                          color: RATING_OPTIONS.find(
+                            (o) => o.key === pg.rating
+                          )?.color,
+                        }}
+                      >
+                        {
+                          RATING_OPTIONS.find(
+                            (o) => o.key === pg.rating
+                          )?.emoji
+                        }{" "}
+                        {
+                          RATING_OPTIONS.find(
+                            (o) => o.key === pg.rating
+                          )?.label
+                        }
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5 shrink-0">
+                  {!solved ? (
+                    <button
+                      onClick={() => handleSolveClick(p.id)}
+                      className="btn-success text-[10px] px-2.5 py-1.5"
+                    >
+                      ✓ Solved
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleUnmarkClick(p.id)}
+                      className="btn-ghost text-[10px] px-2.5 py-1.5"
+                    >
+                      ↩ Undo
+                    </button>
+                  )}
+                  <button
+                    onClick={() => onOpenNotes(p.id)}
+                    className="text-[10px] text-surface-500 hover:text-surface-300 transition-colors cursor-pointer text-center"
+                  >
+                    📝 {notesById[p.id] ? "Edit" : "Notes"}
+                  </button>
+                </div>
+              </div>
+              {solved && (
+                <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-surface-700/20">
+                  <span className="text-[10px] text-surface-500">
+                    {formatDate(pg.solvedDate)}
+                  </span>
+                  {pg.revisions.map((r: Revision, idx: number) => {
+                    const overdue = !r.done && r.date <= todayStr;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => onToggleRevision(p.id, idx)}
+                        className={`revision-dot !w-8 !h-8 ${
+                          r.done
+                            ? "bg-emerald-900/50 text-emerald-400 border-emerald-500/30"
+                            : overdue
+                              ? "bg-red-900/50 text-red-400 border-red-500/30 animate-pulse-soft"
+                              : "bg-blue-900/40 text-blue-400 border-blue-500/25"
+                        }`}
+                        aria-label={`Revision ${idx + 1}: ${r.done ? "Done" : overdue ? "Overdue" : daysFromNow(r.date)}`}
+                      >
+                        <span className="text-[9px] leading-none">
+                          {r.done ? "✓" : `R${idx + 1}`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <div className="text-center py-3">
+          <span className="text-xs text-surface-500">
+            Showing {sorted.length} of {PROBLEMS.length} · {solvedCount}{" "}
+            solved
+          </span>
+        </div>
+      </div>
+
+      {/* Rating Modal */}
+      <RatingModal
+        open={ratingProblemId !== null}
+        problemName={ratingProblem?.name ?? ""}
+        onRate={handleRating}
+        onSkip={handleRatingSkip}
+      />
+
+      {/* Confirm Undo Dialog */}
+      <ConfirmDialog
+        open={confirmUnmarkId !== null}
+        title="Unmark problem?"
+        message={`This will remove "${confirmProblem?.name ?? ""}" from solved and delete all revision progress. Are you sure?`}
+        confirmLabel="Unmark"
+        danger
+        onConfirm={handleConfirmUnmark}
+        onCancel={() => setConfirmUnmarkId(null)}
+      />
+    </div>
+  );
+}

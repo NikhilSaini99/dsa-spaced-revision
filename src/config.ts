@@ -1,10 +1,4 @@
-export interface Problem {
-  id: number;
-  name: string;
-  pattern: string;
-  difficulty: string;
-  url: string;
-}
+import type { Problem, SolveRating } from "./types";
 
 export const PROBLEMS: Problem[] = [
   // Two Pointers
@@ -90,3 +84,28 @@ export const PATTERN_COLORS: Record<string, string> = {
   "Prefix Sum": "#60a5fa",
   "Binary Search": "#a78bfa",
 };
+
+export const RATING_OPTIONS: {
+  key: SolveRating;
+  label: string;
+  emoji: string;
+  color: string;
+  description: string;
+}[] = [
+  { key: "easy", label: "Easy", emoji: "😎", color: "#4ade80", description: "Solved quickly, understood well" },
+  { key: "got-it", label: "Got It", emoji: "👍", color: "#60a5fa", description: "Needed some thought, but solved" },
+  { key: "struggled", label: "Struggled", emoji: "😤", color: "#facc15", description: "Took a while, need more practice" },
+  { key: "redo", label: "Need Redo", emoji: "🔄", color: "#f87171", description: "Couldn't solve, need to revisit" },
+];
+
+export const NOTES_TEMPLATES = [
+  { label: "Approach", text: "## Approach\n\n- \n\n## Key Insight\n\n- \n" },
+  { label: "Edge Cases", text: "## Edge Cases\n\n- Empty input\n- Single element\n- All same elements\n- Negative numbers\n- \n" },
+  { label: "Complexity", text: "## Time Complexity\n\n- O()\n\n## Space Complexity\n\n- O()\n" },
+  { label: "Mistakes", text: "## Mistakes to Avoid\n\n- \n\n## What I Learned\n\n- \n" },
+];
+
+export const PROGRESS_STORAGE_KEY = "dsa-progress";
+export const NOTES_STORAGE_KEY = "dsa-notes";
+
+export const TAB_KEYS = ["problems", "random", "today", "upcoming"] as const;

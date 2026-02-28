@@ -61,6 +61,7 @@ export default function App() {
   const [progress, setProgress] = useState<Record<number, ProblemProgress>>({});
   const [notesById, setNotesById] = useState<Record<number, string>>({});
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
+  const [filterScope, setFilterScope] = useState<"all" | "solved" | "unsolved">("all");
   const [filterPattern, setFilterPattern] = useState("All");
   const [filterDiff, setFilterDiff] = useState("All");
   const [loaded, setLoaded] = useState(false);
@@ -230,6 +231,7 @@ export default function App() {
   const totalRevs = solvedCount * SPACED_DAYS.length;
   const filtered = PROBLEMS.filter(
     p =>
+      (filterScope === "all" || (filterScope === "solved" ? !!progress[p.id] : !progress[p.id])) &&
       (filterPattern === "All" || p.pattern === filterPattern) &&
       (filterDiff === "All" || p.difficulty === filterDiff)
   );
@@ -322,6 +324,32 @@ export default function App() {
           <div className="space-y-5">
             {/* filters */}
             <div className="glass-card p-4 flex flex-col gap-4">
+              {/* scope row */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-widest text-surface-500 mr-1">Scope</span>
+                {([
+                  ["all", "All"],
+                  ["solved", "Solved"],
+                  ["unsolved", "Unsolved"],
+                ] as const).map(([key, label]) => {
+                  const active = filterScope === key;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setFilterScope(key)}
+                      className={`pill ${active ? "pill-active bg-blue-500/15 border-blue-400 text-blue-400" : ""}`}
+                      style={
+                        !active
+                          ? { borderColor: "rgb(51 65 85 / .5)", color: "rgb(148 163 184)" }
+                          : undefined
+                      }
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* pattern row */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[11px] font-bold uppercase tracking-widest text-surface-500 mr-1">Pattern</span>
@@ -863,10 +891,22 @@ export default function App() {
                                     style={{ background: DIFF_BG[p.difficulty], color: DIFF_COLOR[p.difficulty] }}>
                                     {p.difficulty}
                                   </span>
-                                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                                    style={{ background: PATTERN_COLORS[p.pattern] + "1a", color: PATTERN_COLORS[p.pattern] }}>
-                                    {p.pattern}
-                                  </span>
+                                  {revealed[p.id] ? (
+                                    <button
+                                      onClick={() => toggleReveal(p.id)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold cursor-pointer transition-colors"
+                                      style={{ background: PATTERN_COLORS[p.pattern] + "1a", color: PATTERN_COLORS[p.pattern] }}
+                                    >
+                                      {p.pattern} <span className="opacity-60">✕</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => toggleReveal(p.id)}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium cursor-pointer bg-surface-700/60 text-surface-400 hover:bg-surface-600/60 hover:text-surface-200 transition-colors"
+                                    >
+                                      👁 Reveal
+                                    </button>
+                                  )}
                                   <span className="text-[10px] text-surface-600">Rev {p.rIdx + 1}</span>
                                 </div>
                                 <span className="text-sm font-medium text-surface-200 group-hover:text-white transition-colors">{p.name}</span>
