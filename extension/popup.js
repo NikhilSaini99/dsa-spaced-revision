@@ -8,7 +8,10 @@ const SOURCE_COLORS = {
   TUF: "#e74c3c",
 };
 
-const TRACKER_ORIGIN = "http://localhost:5173"; // Vite dev default
+const TRACKER_ORIGINS = [
+  "https://random-question-tracker.vercel.app", // Production
+  "http://localhost:5173",                      // Local dev fallback
+];
 
 const listEl = document.getElementById("list");
 const actionsEl = document.getElementById("actions");
@@ -73,10 +76,10 @@ document.getElementById("pushBtn").addEventListener("click", () => {
     // 1. If a tracker tab is open, send via chrome.tabs
     // 2. Otherwise open the tracker and pass data via storage
 
-    // Try to find an open tracker tab
+    // Try to find an open tracker tab (check all known origins)
     chrome.tabs.query({}, (tabs) => {
       const trackerTab = tabs.find(
-        (t) => t.url && (t.url.includes("localhost:5173") || t.url.includes("dsa-tracker"))
+        (t) => t.url && TRACKER_ORIGINS.some((origin) => t.url.startsWith(origin))
       );
 
       if (trackerTab) {
@@ -109,9 +112,9 @@ document.getElementById("pushBtn").addEventListener("click", () => {
           }
         );
       } else {
-        // No tracker tab found — save to storage and open it
+        // No tracker tab found — save to storage and open the first available origin (production)
         chrome.storage.local.set({ pushOnLoad: problems }, () => {
-          chrome.tabs.create({ url: TRACKER_ORIGIN });
+          chrome.tabs.create({ url: TRACKER_ORIGINS[0] });
           chrome.runtime.sendMessage({ type: "CLEAR_PENDING" }, () => {
             statusEl.textContent = "✅ Opening tracker…";
             render([]);

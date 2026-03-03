@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Save problems from LeetCode, GFG, HackerRank, and TUF directly to your DSA Tracker.",
   "permissions": ["activeTab", "storage", "scripting", "tabs"],
-  "host_permissions": ["http://localhost:*/*"],
+  "host_permissions": ["https://random-question-tracker.vercel.app/*", "http://localhost:*/*"],
   "background": {
     "service_worker": "background.js"
   },
