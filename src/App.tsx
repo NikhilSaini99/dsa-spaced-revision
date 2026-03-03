@@ -1,20 +1,38 @@
 import { useState, useCallback } from "react";
-import { PROBLEMS, SPACED_DAYS } from "./config";
+import { SPACED_DAYS } from "./config";
 import { today } from "./utils";
 import { useHashTab } from "./hooks/useHashTab";
 import { useProgress } from "./hooks/useProgress";
 import { useNotes } from "./hooks/useNotes";
 import { useRandomPicker } from "./hooks/useRandomPicker";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { useProblems } from "./hooks/useProblems";
 import { Header } from "./components/Header";
 import { ProblemsTab } from "./components/ProblemsTab";
 import { RandomPickerTab } from "./components/RandomPickerTab";
 import { TodayTab } from "./components/TodayTab";
 import { UpcomingTab } from "./components/UpcomingTab";
 import { NotesModal } from "./components/NotesModal";
+import { AddProblemModal } from "./components/AddProblemModal";
+import { IncomingProblemsToast } from "./components/IncomingProblemsToast";
+import type { Problem, SourceKey } from "./types";
 
 export default function App() {
   const [tab, setTab] = useHashTab();
+  const {
+    allProblems,
+    customProblems,
+    allPatterns,
+    allTopics,
+    incomingQueue,
+    addProblem,
+    addProblems,
+    editProblem,
+    deleteProblem,
+    clearIncoming,
+    dismissIncoming,
+    importCustomProblems,
+  } = useProblems();
   const {
     progress,
     loaded,
@@ -26,16 +44,18 @@ export default function App() {
     importData,
   } = useProgress();
   const { notesById, setNotesById, updateNote, flushNotesSave } = useNotes();
-  const picker = useRandomPicker(progress);
+  const picker = useRandomPicker(progress, allProblems, allPatterns);
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const [notesModalId, setNotesModalId] = useState<number | null>(null);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [editModalProblem, setEditModalProblem] = useState<Problem | null>(null);
 
   const toggleReveal = useCallback(
     (id: number) => setRevealed((r) => ({ ...r, [id]: !r[id] })),
     []
   );
 
-  const isModalOpen = notesModalId !== null;
+  const isModalOpen = notesModalId !== null || addModalOpen || editModalProblem !== null;
 
   useKeyboardShortcuts({
     setTab,
@@ -44,11 +64,11 @@ export default function App() {
   });
 
   const todayStr = today();
-  const todayRevisions = PROBLEMS.filter((p) => {
+  const todayRevisions = allProblems.filter((p) => {
     const pg = progress[p.id];
     return pg && pg.revisions.some((r) => !r.done && r.date <= todayStr);
   });
-  const upcomingRevisions = PROBLEMS.flatMap((p) => {
+  const upcomingRevisions = allProblems.flatMap((p) => {
     const pg = progress[p.id];
     if (!pg) return [];
     return pg.revisions
@@ -65,14 +85,30 @@ export default function App() {
 
   const activeNotesProblem =
     notesModalId !== null
-      ? (PROBLEMS.find((p) => p.id === notesModalId) ?? null)
+      ? (allProblems.find((p) => p.id === notesModalId) ?? null)
       : null;
 
   const tabCounts = {
-    problems: PROBLEMS.length,
+    problems: allProblems.length,
     random: picker.pickPool.length,
     today: todayRevisions.length,
     upcoming: upcomingRevisions.length,
+  };
+
+  const handleAddProblem = (data: { name: string; url: string; pattern: string; difficulty: string; source: SourceKey; topics: string[] }) => {
+    addProblem(data);
+  };
+
+  const handleEditProblem = (data: { name: string; url: string; pattern: string; difficulty: string; source: SourceKey; topics: string[] }) => {
+    if (editModalProblem) {
+      editProblem(editModalProblem.id, data);
+      setEditModalProblem(null);
+    }
+  };
+
+  const handleIncomingAccept = (items: { name: string; url: string; pattern: string; difficulty: string; source: SourceKey; topics: string[] }[]) => {
+    addProblems(items);
+    clearIncoming();
   };
 
   if (!loaded)
@@ -91,12 +127,16 @@ export default function App() {
         progress={progress}
         todayCount={todayRevisions.length}
         solvedCount={solvedCount}
+        totalProblems={allProblems.length}
         totalRevsDone={totalRevsDone}
         totalRevs={totalRevs}
         notesById={notesById}
+        customProblems={customProblems}
         onExport={exportData}
         onImport={importData}
         setNotesById={setNotesById}
+        importCustomProblems={importCustomProblems}
+        onAddProblem={() => setAddModalOpen(true)}
       />
 
       {/* Tabs */}
@@ -140,6 +180,9 @@ export default function App() {
       >
         {tab === "problems" && (
           <ProblemsTab
+            problems={allProblems}
+            allPatterns={allPatterns}
+            allTopics={allTopics}
             progress={progress}
             notesById={notesById}
             revealed={revealed}
@@ -149,10 +192,14 @@ export default function App() {
             onToggleReveal={toggleReveal}
             onOpenNotes={setNotesModalId}
             onUpdateRating={updateRating}
+            onEditProblem={setEditModalProblem}
+            onDeleteProblem={deleteProblem}
           />
         )}
         {tab === "random" && (
           <RandomPickerTab
+            allProblems={allProblems}
+            allPatterns={allPatterns}
             progress={progress}
             randomPick={picker.randomPick}
             pickHistory={picker.pickHistory}
@@ -173,12 +220,14 @@ export default function App() {
         )}
         {tab === "today" && (
           <TodayTab
+            problems={allProblems}
             progress={progress}
             onToggleRevision={toggleRevision}
           />
         )}
         {tab === "upcoming" && (
           <UpcomingTab
+            problems={allProblems}
             progress={progress}
             revealed={revealed}
             onToggleReveal={toggleReveal}
@@ -193,6 +242,35 @@ export default function App() {
         onUpdate={updateNote}
         onFlush={flushNotesSave}
         onClose={() => setNotesModalId(null)}
+      />
+
+      {/* Add Problem Modal */}
+      <AddProblemModal
+        open={addModalOpen}
+        existingPatterns={allPatterns}
+        existingTopics={allTopics}
+        onSave={handleAddProblem}
+        onClose={() => setAddModalOpen(false)}
+      />
+
+      {/* Edit Problem Modal */}
+      <AddProblemModal
+        open={editModalProblem !== null}
+        editProblem={editModalProblem}
+        existingPatterns={allPatterns}
+        existingTopics={allTopics}
+        onSave={handleEditProblem}
+        onClose={() => setEditModalProblem(null)}
+      />
+
+      {/* Incoming from Extension */}
+      <IncomingProblemsToast
+        queue={incomingQueue}
+        existingPatterns={allPatterns}
+        existingTopics={allTopics}
+        onAccept={handleIncomingAccept}
+        onDismissOne={dismissIncoming}
+        onDismissAll={clearIncoming}
       />
 
       {/* Footer */}

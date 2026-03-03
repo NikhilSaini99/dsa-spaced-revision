@@ -1,38 +1,48 @@
 import { useRef } from "react";
-import { PROBLEMS, SPACED_DAYS } from "../config";
-import type { ProblemProgress, ExportData } from "../types";
+import { SPACED_DAYS } from "../config";
+import type { Problem, ProblemProgress, ExportData } from "../types";
 import { ProgressRing } from "./ProgressRing";
 
 interface Props {
   progress: Record<number, ProblemProgress>;
   todayCount: number;
   solvedCount: number;
+  totalProblems: number;
   totalRevsDone: number;
   totalRevs: number;
   notesById: Record<number, string>;
+  customProblems: Problem[];
   onExport: (notes: Record<number, string>) => ExportData;
   onImport: (
     data: ExportData,
     setNotes: (n: Record<number, string>) => void
   ) => void;
   setNotesById: (n: Record<number, string>) => void;
+  importCustomProblems: (problems: Problem[]) => number;
+  onAddProblem: () => void;
 }
 
 export function Header({
   todayCount,
   solvedCount,
+  totalProblems,
   totalRevsDone,
   totalRevs,
   notesById,
+  customProblems,
   onExport,
   onImport,
   setNotesById,
+  importCustomProblems,
+  onAddProblem,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
     const data = onExport(notesById);
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
+    // Include custom problems in export
+    const exportPayload = { ...data, customProblems };
+    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
@@ -55,8 +65,12 @@ export function Header({
           return;
         }
         onImport(data, setNotesById);
+        let customCount = 0;
+        if (data.customProblems && Array.isArray(data.customProblems)) {
+          customCount = importCustomProblems(data.customProblems);
+        }
         alert(
-          `Imported successfully! (${Object.keys(data.progress).length} solved, ${Object.keys(data.notes || {}).length} notes)`
+          `Imported successfully! (${Object.keys(data.progress).length} solved, ${Object.keys(data.notes || {}).length} notes${customCount > 0 ? `, ${customCount} custom problems` : ""})`
         );
       } catch {
         alert("Failed to parse backup file.");
@@ -105,7 +119,7 @@ export function Header({
               {
                 label: "Solved",
                 val: solvedCount,
-                total: PROBLEMS.length,
+                total: totalProblems,
                 color: "#4ade80",
               },
               {
@@ -161,8 +175,15 @@ export function Header({
             ))}
           </div>
 
-          {/* Export / Import */}
+          {/* Add / Export / Import */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={onAddProblem}
+              className="btn-primary text-[10px] sm:text-[11px] px-2.5 py-1.5 flex items-center gap-1"
+              aria-label="Add a custom problem"
+            >
+              <span aria-hidden="true">+</span> Add Problem
+            </button>
             <button
               onClick={handleExport}
               className="btn-ghost text-[10px] sm:text-[11px] px-2.5 py-1.5 flex items-center gap-1"

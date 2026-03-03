@@ -1,8 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { Problem, ProblemProgress } from "../types";
-import { PROBLEMS } from "../config";
 
-export function useRandomPicker(progress: Record<number, ProblemProgress>) {
+export function useRandomPicker(
+  progress: Record<number, ProblemProgress>,
+  problems: Problem[],
+  _allPatterns: string[]
+) {
   const [randomPick, setRandomPick] = useState<Problem | null>(null);
   const [pickHistory, setPickHistory] = useState<Problem[]>([]);
   const [pickScope, setPickScope] = useState<"all" | "unsolved" | "solved">("unsolved");
@@ -12,7 +15,7 @@ export function useRandomPicker(progress: Record<number, ProblemProgress>) {
   const [pickRevealed, setPickRevealed] = useState(false);
   const rollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const pickPool = PROBLEMS.filter((p) => {
+  const pickPool = problems.filter((p) => {
     if (pickScope === "unsolved" && progress[p.id]) return false;
     if (pickScope === "solved" && !progress[p.id]) return false;
     if (pickPattern !== "All" && p.pattern !== pickPattern) return false;

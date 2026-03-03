@@ -1,8 +1,6 @@
 import { useState } from "react";
 import type { Problem, ProblemProgress, SolveRating } from "../types";
 import {
-  PROBLEMS,
-  PATTERNS,
   DIFFICULTIES,
   DIFF_BG,
   DIFF_COLOR,
@@ -11,6 +9,8 @@ import {
 import { RatingModal } from "./RatingModal";
 
 interface Props {
+  allProblems: Problem[];
+  allPatterns: string[];
   progress: Record<number, ProblemProgress>;
   randomPick: Problem | null;
   pickHistory: Problem[];
@@ -30,6 +30,8 @@ interface Props {
 }
 
 export function RandomPickerTab({
+  allProblems,
+  allPatterns,
   progress,
   randomPick,
   pickHistory,
@@ -92,7 +94,7 @@ export function RandomPickerTab({
               <span className="text-[11px] font-bold uppercase tracking-widest text-surface-500">
                 Pattern
               </span>
-              {PATTERNS.map((p) => {
+              {allPatterns.map((p) => {
                 const active = pickPattern === p;
                 const c = PATTERN_COLORS[p] || "#3b82f6";
                 return (
@@ -350,7 +352,7 @@ export function RandomPickerTab({
         open={ratingId !== null}
         problemName={
           ratingId !== null
-            ? (PROBLEMS.find((p) => p.id === ratingId)?.name ?? "")
+            ? (allProblems.find((p) => p.id === ratingId)?.name ?? "")
             : ""
         }
         onRate={(rating) => {

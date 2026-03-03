@@ -1,3 +1,5 @@
+import type { SourceKey } from "./types";
+
 export function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + days);
@@ -63,4 +65,54 @@ const DIFF_ORDER: Record<string, number> = { Easy: 0, Medium: 1, Hard: 2 };
 
 export function difficultyOrder(d: string): number {
   return DIFF_ORDER[d] ?? 99;
+}
+
+/** Detect platform source from a URL */
+export function detectSourceFromUrl(url: string): SourceKey | null {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host.includes("leetcode.com")) return "LeetCode";
+    if (host.includes("geeksforgeeks.org")) return "GFG";
+    if (host.includes("hackerrank.com")) return "HackerRank";
+    if (host.includes("takeuforward.org")) return "TUF";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Extract a human-readable problem name from a URL slug */
+export function nameFromUrl(url: string): string {
+  try {
+    const { pathname, hostname } = new URL(url);
+    const segments = pathname.split("/").filter(Boolean);
+
+    if (hostname.includes("leetcode.com")) {
+      const slug = segments.find((_, i) => segments[i - 1] === "problems");
+      if (slug) return slugToTitle(slug);
+    }
+    if (hostname.includes("geeksforgeeks.org")) {
+      const slug = segments.find((_, i) => segments[i - 1] === "problems");
+      if (slug) return slugToTitle(slug);
+    }
+    if (hostname.includes("hackerrank.com")) {
+      const slug = segments.find((_, i) => segments[i - 1] === "challenges");
+      if (slug) return slugToTitle(slug);
+    }
+    if (hostname.includes("takeuforward.org")) {
+      const slug = segments[segments.length - 1] || segments[segments.length - 2];
+      if (slug) return slugToTitle(slug);
+    }
+    const last = segments[segments.length - 1];
+    return last ? slugToTitle(last) : "";
+  } catch {
+    return "";
+  }
+}
+
+function slugToTitle(slug: string): string {
+  return slug
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
 }
