@@ -26,6 +26,38 @@
   let url = location.href.split("?")[0].split("#")[0];
   let difficulty = "";
   let topics = [];
+  let companies = [];
+
+  /** Collect company tags from TUF's Company section */
+  const collectCompanyTags = () => {
+    const tags = new Set();
+    // Strategy 1: Find a heading/text that says "Company" and grab sibling content
+    document.querySelectorAll('div, section, span, h2, h3, h4, p').forEach((el) => {
+      const text = el.textContent.trim();
+      if (text === 'Company' || text === 'Companies') {
+        // Look for the next sibling or parent's next sibling container with tag-like children
+        const container = el.closest('div, section')?.parentElement || el.parentElement;
+        if (container) {
+          container.querySelectorAll('span, a, div, button, p').forEach((child) => {
+            if (child.children.length > 0) return; // leaf nodes
+            const t = child.textContent.trim();
+            if (t && t.length > 1 && t.length < 60 && t !== 'Company' && t !== 'Companies') {
+              tags.add(t);
+            }
+          });
+        }
+      }
+    });
+    // Strategy 2: Elements with class containing "company"
+    if (tags.size === 0) {
+      document.querySelectorAll('[class*="company"] span, [class*="company"] a, [class*="company"] div, [class*="Company"] span, [class*="Company"] a').forEach((el) => {
+        if (el.children.length > 0) return;
+        const t = el.textContent.trim();
+        if (t && t.length > 1 && t.length < 60) tags.add(t);
+      });
+    }
+    return [...tags];
+  };
 
   /* ── LeetCode ── */
   if (host === "leetcode.com" && path.startsWith("/problems/")) {
@@ -99,23 +131,55 @@
   }
 
   /* ── TakeUForward (TUF) ── */
-  if (host === "takeuforward.org" && path.includes("/data-structures-and-algorithms/")) {
+  if (host === "takeuforward.org" && (path.includes("/data-structures-and-algorithms/") || path.includes("/dsa/problems/"))) {
     source = "TUF";
     const segments = path.split("/").filter(Boolean);
     const slug = segments[segments.length - 1] || "";
-    name = slugToTitle(slug);
-    // TUF doesn't consistently surface difficulty in the DOM
 
-    // Topics — try to extract from the URL structure (e.g. /sorting/bubble-sort)
-    // and also look for tag-like elements on page
+    // ── Title: use the URL slug (reliable) ──
+    name = slugToTitle(slug);
+
+    // ── Difficulty: look for Easy / Medium / Hard text in badge-like elements ──
+    const diffSelectors = [
+      '[class*="difficulty"]',
+      '[class*="Difficulty"]',
+      '[class*="badge"]',
+      '[class*="level"]',
+      '[class*="tag"]',
+    ];
+    for (const sel of diffSelectors) {
+      if (difficulty) break;
+      document.querySelectorAll(sel).forEach((el) => {
+        if (difficulty) return;
+        const text = el.textContent.trim().toLowerCase();
+        if (text === "easy" || text === "medium" || text === "hard") {
+          difficulty = text.charAt(0).toUpperCase() + text.slice(1);
+        }
+      });
+    }
+    // Fallback: search all small text elements for standalone Easy/Medium/Hard
+    if (!difficulty) {
+      document.querySelectorAll('span, div, p, button').forEach((el) => {
+        if (difficulty) return;
+        if (el.children.length > 0) return; // leaf nodes only
+        const text = el.textContent.trim().toLowerCase();
+        if (text === "easy") difficulty = "Easy";
+        else if (text === "medium") difficulty = "Medium";
+        else if (text === "hard") difficulty = "Hard";
+      });
+    }
+
+    // ── Topics: try DOM tags, then URL-derived ──
     topics = collectTags('.tag, .topic-tag, [class*="tag"] a');
-    // URL-derived topic: second-to-last segment is usually the category
     if (!topics.length && segments.length >= 3) {
       const category = slugToTitle(segments[segments.length - 2] || "");
-      if (category && category !== "Data Structures And Algorithms") {
+      if (category && category !== "Data Structures And Algorithms" && category !== "Problems" && category !== "Dsa") {
         topics = [category];
       }
     }
+
+    // ── Company tags: look for the "Company" section and extract names ──
+    companies = collectCompanyTags();
   }
 
   // De-dup and clean up topics
@@ -123,6 +187,6 @@
 
   // Expose to bridge.js (runs after this script)
   if (source) {
-    window.__dsaTrackerProblem = { source, name, url, difficulty, topics };
+    window.__dsaTrackerProblem = { source, name, url, difficulty, topics, companies };
   }
 })();

@@ -21,6 +21,7 @@ interface Props {
       difficulty: string;
       source: SourceKey;
       topics: string[];
+      companies?: string[];
     }[]
   ) => void;
   onDismissOne: (url: string) => void;
@@ -85,6 +86,7 @@ export function IncomingProblemsToast({
       topics: assignments[p.url]?.topics?.length
         ? assignments[p.url].topics
         : (p.topics ?? []),
+      companies: p.companies ?? [],
     }));
     onAccept(items);
     setReviewing(false);
@@ -239,6 +241,22 @@ export function IncomingProblemsToast({
                             className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
                           >
                             {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {/* Scraped company tags (TUF) */}
+                    {p.companies && p.companies.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-surface-600">
+                          Companies:
+                        </span>
+                        {p.companies.map((c) => (
+                          <span
+                            key={c}
+                            className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                          >
+                            {c}
                           </span>
                         ))}
                       </div>

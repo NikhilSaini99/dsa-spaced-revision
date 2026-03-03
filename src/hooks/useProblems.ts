@@ -77,7 +77,7 @@ export function useProblems() {
 
   // ── CRUD ──
   const addProblem = useCallback(
-    (data: { name: string; url: string; pattern: string; difficulty: string; source: SourceKey; topics: string[] }): Problem => {
+    (data: { name: string; url: string; pattern: string; difficulty: string; source: SourceKey; topics: string[]; companies?: string[] }): Problem => {
       const problem: Problem = {
         id: nextId(),
         name: data.name,
@@ -86,6 +86,7 @@ export function useProblems() {
         difficulty: data.difficulty,
         source: data.source,
         topics: data.topics ?? [],
+        companies: data.companies ?? [],
         builtIn: false,
       };
       saveCustom([...customProblems, problem]);
@@ -95,7 +96,7 @@ export function useProblems() {
   );
 
   const addProblems = useCallback(
-    (items: { name: string; url: string; pattern: string; difficulty: string; source: SourceKey; topics: string[] }[]): Problem[] => {
+    (items: { name: string; url: string; pattern: string; difficulty: string; source: SourceKey; topics: string[]; companies?: string[] }[]): Problem[] => {
       let id = nextId();
       const existingUrls = new Set(allProblems.map((p) => p.url));
       const newProblems: Problem[] = [];
@@ -109,6 +110,7 @@ export function useProblems() {
           difficulty: data.difficulty,
           source: data.source,
           topics: data.topics ?? [],
+          companies: data.companies ?? [],
           builtIn: false,
         });
         existingUrls.add(data.url);

@@ -41,4 +41,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     });
     return true;
   }
+
+  if (msg.type === "REMOVE_PENDING") {
+    chrome.storage.local.get({ pendingProblems: [] }, (data) => {
+      const updated = data.pendingProblems.filter((p) => p.url !== msg.url);
+      chrome.storage.local.set({ pendingProblems: updated }, () => {
+        chrome.action.setBadgeText({ text: updated.length ? String(updated.length) : "" });
+        if (updated.length) chrome.action.setBadgeBackgroundColor({ color: "#6366f1" });
+        sendResponse({ status: "removed", problems: updated });
+      });
+    });
+    return true;
+  }
 });

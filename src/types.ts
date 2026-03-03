@@ -9,6 +9,7 @@ export interface Problem {
   source: SourceKey;
   builtIn: boolean;
   topics: string[];
+  companies?: string[];
 }
 
 export interface Revision {
@@ -36,6 +37,7 @@ export interface IncomingProblem {
   source: SourceKey;
   difficulty: string;
   topics?: string[];
+  companies?: string[];
   savedAt: string;
 }
 

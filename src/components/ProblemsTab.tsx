@@ -290,6 +290,27 @@ export function ProblemsTab({
                         )}
                         {p.name}
                       </a>
+                      {/* Company tags indicator (from TUF scraping) */}
+                      {p.companies && p.companies.length > 0 && (
+                        <div className="relative inline-block ml-2 group/companies">
+                          <span
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 cursor-default"
+                            title={p.companies.join(", ")}
+                          >
+                            🏢 {p.companies.length}
+                          </span>
+                          <div className="absolute left-0 top-full mt-1 z-50 hidden group-hover/companies:flex flex-wrap gap-1 glass-card p-2 min-w-max max-w-xs animate-fade-in">
+                            {p.companies.map((c) => (
+                              <span
+                                key={c}
+                                className="inline-block px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                              >
+                                {c}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </td>
                     {/* difficulty */}
                     <td className="px-4 py-3">
@@ -767,6 +788,14 @@ export function ProblemsTab({
                         title={p.topics.slice(2).join(", ")}
                       >
                         +{p.topics.length - 2}
+                      </span>
+                    )}
+                    {p.companies && p.companies.length > 0 && (
+                      <span
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                        title={p.companies.join(", ")}
+                      >
+                        🏢 {p.companies.length}
                       </span>
                     )}
                   </div>

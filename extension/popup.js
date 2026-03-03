@@ -28,6 +28,7 @@ function render(problems) {
       const topicBadges = (p.topics || []).map((t) => `<span class="badge" style="background:#1e293b;color:#818cf8;border:1px solid #334155">${escHtml(t)}</span>`).join("");
       return `
         <div class="item">
+          <button class="item-remove" data-url="${escHtml(p.url)}" title="Remove">✕</button>
           <div class="item-name">${escHtml(p.name)}</div>
           <div class="item-meta">
             <span class="badge" style="background:${srcColor}22;color:${srcColor}">${p.source}</span>
@@ -37,6 +38,19 @@ function render(problems) {
         </div>`;
     })
     .join("");
+
+  // Attach per-item remove handlers
+  listEl.querySelectorAll(".item-remove").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const url = btn.getAttribute("data-url");
+      chrome.runtime.sendMessage({ type: "REMOVE_PENDING", url }, (res) => {
+        if (res?.problems) {
+          render(res.problems);
+        }
+      });
+    });
+  });
 }
 
 function escHtml(s) {

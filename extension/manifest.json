@@ -15,7 +15,8 @@
         "https://www.geeksforgeeks.org/problems/*",
         "https://practice.geeksforgeeks.org/problems/*",
         "https://www.hackerrank.com/challenges/*",
-        "https://takeuforward.org/plus/data-structures-and-algorithms/*"
+        "https://takeuforward.org/plus/data-structures-and-algorithms/*",
+        "https://takeuforward.org/plus/dsa/problems/*"
       ],
       "js": ["scrapers/detect.js", "bridge.js"],
       "run_at": "document_idle"

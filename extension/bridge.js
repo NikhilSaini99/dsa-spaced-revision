@@ -6,7 +6,7 @@
   // Avoid double-injection
   if (document.getElementById("dsa-tracker-save-btn")) return;
 
-  const { source, name, url, difficulty, topics } = window.__dsaTrackerProblem || {};
+  const { source, name, url, difficulty, topics, companies } = window.__dsaTrackerProblem || {};
   if (!source) return; // detect.js didn't find a match
 
   /* ── Inject floating "Save to Tracker" button ── */
@@ -47,7 +47,7 @@
     chrome.runtime.sendMessage(
       {
         type: "SAVE_PROBLEM",
-        payload: { name, url, source, difficulty, topics: topics || [] },
+        payload: { name, url, source, difficulty, topics: topics || [], companies: companies || [] },
       },
       (res) => {
         if (res?.status === "duplicate") {
