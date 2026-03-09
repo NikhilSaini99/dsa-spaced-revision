@@ -1,5 +1,5 @@
 import type { Problem, ProblemProgress } from "../types";
-import { DIFF_BG, DIFF_COLOR, PATTERN_COLORS } from "../config";
+import { DIFF_BG, DIFF_COLOR, PATTERN_COLORS, SOURCE_COLORS } from "../config";
 import { formatDate, daysFromNow, today } from "../utils";
 
 interface Props {
@@ -100,13 +100,33 @@ export function UpcomingTab({ problems, progress, revealed, onToggleReveal }: Pr
                       Rev {p.rIdx + 1}
                     </span>
                   </div>
-                  <span className="text-sm font-medium text-surface-200 group-hover:text-white transition-colors">
+                  <a
+                    href={p.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm font-medium text-surface-200 group-hover:text-white hover:underline decoration-1 underline-offset-2 transition-colors"
+                    aria-label={`${p.name} on ${p.source}`}
+                  >
                     {p.name}
-                  </span>
+                  </a>
                 </div>
-                <span className="text-xs font-semibold text-blue-400 whitespace-nowrap">
-                  {daysFromNow(p.revDate)}
-                </span>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <span className="text-xs font-semibold text-blue-400 whitespace-nowrap">
+                    {daysFromNow(p.revDate)}
+                  </span>
+                  <a
+                    href={p.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full no-underline transition-colors"
+                    style={{
+                      background: (SOURCE_COLORS[p.source] || "#3b82f6") + "18",
+                      color: SOURCE_COLORS[p.source] || "#3b82f6",
+                    }}
+                  >
+                    {p.source} ↗
+                  </a>
+                </div>
               </div>
             ))}
           </div>
