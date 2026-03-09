@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Problem, ProblemProgress } from "../types";
-import { DIFF_BG, DIFF_COLOR, PATTERN_COLORS, SOURCE_COLORS, SPACED_DAYS } from "../config";
+import { DIFF_BG, DIFF_COLOR, SOURCE_COLORS, SPACED_DAYS } from "../config";
 import { formatDate, today } from "../utils";
 
 type RevFilter = "all" | "overdue" | "today" | "rev1" | "rev2" | "rev3" | "rev4";
@@ -141,21 +141,12 @@ export function TodayTab({ problems, progress, onToggleRevision }: Props) {
                 >
                   {p.difficulty}
                 </span>
-                <span
-                  className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
-                  style={{
-                    background: PATTERN_COLORS[p.pattern] + "1a",
-                    color: PATTERN_COLORS[p.pattern],
-                  }}
-                >
-                  {p.pattern}
-                </span>
               </div>
               <a
                 href={p.url}
                 target="_blank"
                 rel="noreferrer"
-                className="text-sm sm:text-base font-semibold text-white hover:text-blue-400 transition-colors hover:underline decoration-1 underline-offset-2"
+                className="block text-sm sm:text-base font-semibold text-white hover:text-blue-400 transition-colors hover:underline decoration-1 underline-offset-2 mb-1.5"
                 aria-label={`${p.name} on ${p.source}`}
               >
                 {p.name}
@@ -164,7 +155,7 @@ export function TodayTab({ problems, progress, onToggleRevision }: Props) {
                 href={p.url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 mt-1 text-[11px] font-medium px-2 py-0.5 rounded-full no-underline transition-colors"
+                className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full no-underline transition-colors"
                 style={{
                   background: (SOURCE_COLORS[p.source] || "#3b82f6") + "18",
                   color: SOURCE_COLORS[p.source] || "#3b82f6",
