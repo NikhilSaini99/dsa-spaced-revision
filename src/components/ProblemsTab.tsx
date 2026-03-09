@@ -281,7 +281,7 @@ export function ProblemsTab({
                         target="_blank"
                         rel="noreferrer"
                         className={`font-medium hover:underline decoration-1 underline-offset-2 ${solved ? "text-emerald-400" : "text-surface-100 group-hover:text-white"}`}
-                        aria-label={`${p.name} on LeetCode${solved ? " (solved)" : ""}`}
+                        aria-label={`${p.name} on ${p.source}${solved ? " (solved)" : ""}`}
                       >
                         {solved && (
                           <span className="mr-1" aria-hidden="true">
@@ -700,7 +700,7 @@ export function ProblemsTab({
                     target="_blank"
                     rel="noreferrer"
                     className={`font-semibold text-sm hover:underline decoration-1 underline-offset-2 block ${solved ? "text-emerald-400" : "text-surface-100"}`}
-                    aria-label={`${p.name} on LeetCode`}
+                    aria-label={`${p.name} on ${p.source}`}
                   >
                     {solved && (
                       <span className="mr-1" aria-hidden="true">

@@ -245,9 +245,9 @@ export function RandomPickerTab({
                 target="_blank"
                 rel="noreferrer"
                 className="btn-primary text-xs px-4 py-2 text-center no-underline"
-                aria-label={`Open ${randomPick.name} on LeetCode`}
+                aria-label={`Open ${randomPick.name} on ${randomPick.source}`}
               >
-                Open on LeetCode ↗
+                Open on {randomPick.source} ↗
               </a>
               {!progress[randomPick.id] && (
                 <button
