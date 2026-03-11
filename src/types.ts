@@ -42,7 +42,7 @@ export interface IncomingProblem {
 }
 
 export interface ExportData {
-  version: 1;
+  version: number;
   exportedAt: string;
   progress: Record<number, ProblemProgress>;
   notes: Record<number, string>;
