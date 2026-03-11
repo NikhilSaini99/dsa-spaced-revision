@@ -79,7 +79,7 @@ export const OLD_SPACED_DAYS = [3, 5, 9, 15];
 
 /** localStorage key for tracking data schema version */
 export const SCHEMA_VERSION_KEY = "dsa-schema-version";
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export const BUILTIN_PATTERNS = ["Two Pointers", "Fast & Slow Pointers", "Linked List", "Sliding Window", "Prefix Sum", "Binary Search"];
 export const PATTERNS = ["All", ...BUILTIN_PATTERNS];

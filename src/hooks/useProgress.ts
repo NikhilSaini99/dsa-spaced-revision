@@ -4,20 +4,14 @@ import { PROGRESS_STORAGE_KEY, NOTES_STORAGE_KEY, SPACED_DAYS, SCHEMA_VERSION_KE
 import { addDays, today } from "../utils";
 
 /**
- * Migrate progress data from old 4-revision schedule [3,5,9,15]
- * to new 5-revision schedule [1,3,7,14,30].
- * Preserves done status by index; adds 5th revision as not-done.
+ * Migrate progress data from old schedule to new [3,7,14,30].
+ * Recalculates all revision dates from solvedDate; preserves done status by index.
  */
 function migrateProgress(
   data: Record<number, ProblemProgress>
 ): Record<number, ProblemProgress> {
   const migrated: Record<number, ProblemProgress> = {};
   for (const [idStr, entry] of Object.entries(data)) {
-    if (entry.revisions.length === SPACED_DAYS.length) {
-      // Already migrated
-      migrated[Number(idStr)] = entry;
-      continue;
-    }
     const newRevisions = SPACED_DAYS.map((d, i) => ({
       date: addDays(entry.solvedDate, d),
       done: i < entry.revisions.length ? entry.revisions[i].done : false,
