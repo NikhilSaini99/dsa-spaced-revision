@@ -3,16 +3,16 @@ import type { Problem, ProblemProgress } from "../types";
 import { DIFF_BG, DIFF_COLOR, SOURCE_COLORS, SPACED_DAYS } from "../config";
 import { formatDate, today } from "../utils";
 
-type RevFilter = "all" | "overdue" | "today" | "rev1" | "rev2" | "rev3" | "rev4";
+type RevFilter = "all" | "overdue" | "today" | "rev1" | "rev2" | "rev3" | "rev4" | "rev5";
 
 const FILTER_OPTIONS: { key: RevFilter; label: string }[] = [
   { key: "all", label: "All Due" },
   { key: "overdue", label: "Overdue" },
   { key: "today", label: "Today Only" },
-  { key: "rev1", label: `Rev 1 (Day +${SPACED_DAYS[0]})` },
-  { key: "rev2", label: `Rev 2 (Day +${SPACED_DAYS[1]})` },
-  { key: "rev3", label: `Rev 3 (Day +${SPACED_DAYS[2]})` },
-  { key: "rev4", label: `Rev 4 (Day +${SPACED_DAYS[3]})` },
+  ...SPACED_DAYS.map((d, i) => ({
+    key: `rev${i + 1}` as RevFilter,
+    label: `Rev ${i + 1} (Day +${d})`,
+  })),
 ];
 
 interface Props {
@@ -49,6 +49,8 @@ export function TodayTab({ problems, progress, onToggleRevision }: Props) {
         return rIdx === 2;
       case "rev4":
         return rIdx === 3;
+      case "rev5":
+        return rIdx === 4;
       default:
         return true;
     }

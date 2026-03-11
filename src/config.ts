@@ -72,7 +72,14 @@ export const BUILTIN_PROBLEMS: Problem[] = [
 export const PROBLEMS = BUILTIN_PROBLEMS;
 
 /** Spaced repetition intervals (days after solving) */
-export const SPACED_DAYS = [3, 5, 9, 15];
+export const SPACED_DAYS = [3, 7, 14, 30];
+
+/** Old intervals for migration detection */
+export const OLD_SPACED_DAYS = [3, 5, 9, 15];
+
+/** localStorage key for tracking data schema version */
+export const SCHEMA_VERSION_KEY = "dsa-schema-version";
+export const CURRENT_SCHEMA_VERSION = 2;
 
 export const BUILTIN_PATTERNS = ["Two Pointers", "Fast & Slow Pointers", "Linked List", "Sliding Window", "Prefix Sum", "Binary Search"];
 export const PATTERNS = ["All", ...BUILTIN_PATTERNS];
