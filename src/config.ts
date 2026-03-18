@@ -1,4 +1,4 @@
-import type { Problem, SolveRating, SourceKey } from "./types";
+import type { Problem, SolveRating, SourceKey, UserSettings } from "./types";
 
 export const BUILTIN_PROBLEMS: Problem[] = [
   // Two Pointers
@@ -66,15 +66,125 @@ export const BUILTIN_PROBLEMS: Problem[] = [
   { id: 52, name: "Minimum Number of Days to Make m Bouquets", pattern: "Binary Search", difficulty: "Hard", url: "https://leetcode.com/problems/minimum-number-of-days-to-make-m-bouquets/", source: "LeetCode", builtIn: true, topics: ["Array"] },
   { id: 53, name: "Split Array Largest Sum", pattern: "Binary Search", difficulty: "Hard", url: "https://leetcode.com/problems/split-array-largest-sum/", source: "LeetCode", builtIn: true, topics: ["Array", "Dynamic Programming", "Greedy"] },
   { id: 54, name: "Median of Two Sorted Arrays", pattern: "Binary Search", difficulty: "Hard", url: "https://leetcode.com/problems/median-of-two-sorted-arrays/", source: "LeetCode", builtIn: true, topics: ["Array"] },
+
+  // Trees
+  { id: 55, name: "Binary Tree Inorder Traversal", pattern: "Trees", difficulty: "Easy", url: "https://leetcode.com/problems/binary-tree-inorder-traversal/", source: "LeetCode", builtIn: true, topics: ["Tree", "DFS"] },
+  { id: 56, name: "Binary Tree Level Order Traversal", pattern: "Trees", difficulty: "Medium", url: "https://leetcode.com/problems/binary-tree-level-order-traversal/", source: "LeetCode", builtIn: true, topics: ["Tree", "BFS"] },
+  { id: 57, name: "Maximum Depth of Binary Tree", pattern: "Trees", difficulty: "Easy", url: "https://leetcode.com/problems/maximum-depth-of-binary-tree/", source: "LeetCode", builtIn: true, topics: ["Tree", "DFS"] },
+  { id: 58, name: "Same Tree", pattern: "Trees", difficulty: "Easy", url: "https://leetcode.com/problems/same-tree/", source: "LeetCode", builtIn: true, topics: ["Tree", "DFS"] },
+  { id: 59, name: "Invert Binary Tree", pattern: "Trees", difficulty: "Easy", url: "https://leetcode.com/problems/invert-binary-tree/", source: "LeetCode", builtIn: true, topics: ["Tree", "DFS"] },
+  { id: 60, name: "Path Sum", pattern: "Trees", difficulty: "Easy", url: "https://leetcode.com/problems/path-sum/", source: "LeetCode", builtIn: true, topics: ["Tree", "DFS"] },
+  { id: 61, name: "Lowest Common Ancestor of a Binary Tree", pattern: "Trees", difficulty: "Medium", url: "https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-tree/", source: "LeetCode", builtIn: true, topics: ["Tree", "DFS"] },
+  { id: 62, name: "Validate Binary Search Tree", pattern: "Trees", difficulty: "Medium", url: "https://leetcode.com/problems/validate-binary-search-tree/", source: "LeetCode", builtIn: true, topics: ["Tree", "Binary Search Tree", "DFS"] },
+  { id: 63, name: "Kth Smallest Element in a BST", pattern: "Trees", difficulty: "Medium", url: "https://leetcode.com/problems/kth-smallest-element-in-a-bst/", source: "LeetCode", builtIn: true, topics: ["Tree", "Binary Search Tree", "DFS"] },
+  { id: 64, name: "Binary Tree Right Side View", pattern: "Trees", difficulty: "Medium", url: "https://leetcode.com/problems/binary-tree-right-side-view/", source: "LeetCode", builtIn: true, topics: ["Tree", "BFS"] },
+  { id: 65, name: "Serialize and Deserialize Binary Tree", pattern: "Trees", difficulty: "Hard", url: "https://leetcode.com/problems/serialize-and-deserialize-binary-tree/", source: "LeetCode", builtIn: true, topics: ["Tree", "DFS", "Design"] },
+
+  // Graphs
+  { id: 66, name: "Number of Islands", pattern: "Graphs", difficulty: "Medium", url: "https://leetcode.com/problems/number-of-islands/", source: "LeetCode", builtIn: true, topics: ["Graph", "DFS", "BFS"] },
+  { id: 67, name: "Clone Graph", pattern: "Graphs", difficulty: "Medium", url: "https://leetcode.com/problems/clone-graph/", source: "LeetCode", builtIn: true, topics: ["Graph", "DFS", "BFS"] },
+  { id: 68, name: "Course Schedule", pattern: "Graphs", difficulty: "Medium", url: "https://leetcode.com/problems/course-schedule/", source: "LeetCode", builtIn: true, topics: ["Graph", "DFS", "BFS"] },
+  { id: 69, name: "Pacific Atlantic Water Flow", pattern: "Graphs", difficulty: "Medium", url: "https://leetcode.com/problems/pacific-atlantic-water-flow/", source: "LeetCode", builtIn: true, topics: ["Graph", "DFS", "BFS"] },
+  { id: 70, name: "Number of Connected Components in an Undirected Graph", pattern: "Graphs", difficulty: "Medium", url: "https://leetcode.com/problems/number-of-connected-components-in-an-undirected-graph/", source: "LeetCode", builtIn: true, topics: ["Graph", "Union Find", "DFS"] },
+  { id: 71, name: "Graph Valid Tree", pattern: "Graphs", difficulty: "Medium", url: "https://leetcode.com/problems/graph-valid-tree/", source: "LeetCode", builtIn: true, topics: ["Graph", "Union Find", "DFS"] },
+  { id: 72, name: "Word Ladder", pattern: "Graphs", difficulty: "Hard", url: "https://leetcode.com/problems/word-ladder/", source: "LeetCode", builtIn: true, topics: ["Graph", "BFS", "String"] },
+  { id: 73, name: "Alien Dictionary", pattern: "Graphs", difficulty: "Hard", url: "https://leetcode.com/problems/alien-dictionary/", source: "LeetCode", builtIn: true, topics: ["Graph", "DFS", "BFS"] },
+  { id: 74, name: "Cheapest Flights Within K Stops", pattern: "Graphs", difficulty: "Medium", url: "https://leetcode.com/problems/cheapest-flights-within-k-stops/", source: "LeetCode", builtIn: true, topics: ["Graph", "DFS", "BFS"] },
+  { id: 75, name: "Network Delay Time", pattern: "Graphs", difficulty: "Medium", url: "https://leetcode.com/problems/network-delay-time/", source: "LeetCode", builtIn: true, topics: ["Graph", "DFS", "BFS"] },
+  { id: 76, name: "Rotting Oranges", pattern: "Graphs", difficulty: "Medium", url: "https://leetcode.com/problems/rotting-oranges/", source: "LeetCode", builtIn: true, topics: ["Graph", "BFS", "Matrix"] },
+
+  // Dynamic Programming
+  { id: 77, name: "Climbing Stairs", pattern: "Dynamic Programming", difficulty: "Easy", url: "https://leetcode.com/problems/climbing-stairs/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "Math"] },
+  { id: 78, name: "House Robber", pattern: "Dynamic Programming", difficulty: "Medium", url: "https://leetcode.com/problems/house-robber/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "Array"] },
+  { id: 79, name: "Coin Change", pattern: "Dynamic Programming", difficulty: "Medium", url: "https://leetcode.com/problems/coin-change/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "Array"] },
+  { id: 80, name: "Longest Increasing Subsequence", pattern: "Dynamic Programming", difficulty: "Medium", url: "https://leetcode.com/problems/longest-increasing-subsequence/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "Array"] },
+  { id: 81, name: "Word Break", pattern: "Dynamic Programming", difficulty: "Medium", url: "https://leetcode.com/problems/word-break/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "String", "Trie"] },
+  { id: 82, name: "Unique Paths", pattern: "Dynamic Programming", difficulty: "Medium", url: "https://leetcode.com/problems/unique-paths/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "Math"] },
+  { id: 83, name: "Jump Game", pattern: "Dynamic Programming", difficulty: "Medium", url: "https://leetcode.com/problems/jump-game/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "Array", "Greedy"] },
+  { id: 84, name: "Decode Ways", pattern: "Dynamic Programming", difficulty: "Medium", url: "https://leetcode.com/problems/decode-ways/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "String"] },
+  { id: 85, name: "Longest Common Subsequence", pattern: "Dynamic Programming", difficulty: "Medium", url: "https://leetcode.com/problems/longest-common-subsequence/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "String"] },
+  { id: 86, name: "Edit Distance", pattern: "Dynamic Programming", difficulty: "Medium", url: "https://leetcode.com/problems/edit-distance/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "String"] },
+  { id: 87, name: "Maximum Product Subarray", pattern: "Dynamic Programming", difficulty: "Medium", url: "https://leetcode.com/problems/maximum-product-subarray/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "Array"] },
+  { id: 88, name: "Partition Equal Subset Sum", pattern: "Dynamic Programming", difficulty: "Medium", url: "https://leetcode.com/problems/partition-equal-subset-sum/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "Array"] },
+  { id: 89, name: "Target Sum", pattern: "Dynamic Programming", difficulty: "Medium", url: "https://leetcode.com/problems/target-sum/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "Array", "Backtracking"] },
+  { id: 90, name: "Interleaving String", pattern: "Dynamic Programming", difficulty: "Hard", url: "https://leetcode.com/problems/interleaving-string/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "String"] },
+
+  // Backtracking
+  { id: 91, name: "Subsets", pattern: "Backtracking", difficulty: "Medium", url: "https://leetcode.com/problems/subsets/", source: "LeetCode", builtIn: true, topics: ["Array", "Backtracking"] },
+  { id: 92, name: "Permutations", pattern: "Backtracking", difficulty: "Medium", url: "https://leetcode.com/problems/permutations/", source: "LeetCode", builtIn: true, topics: ["Array", "Backtracking"] },
+  { id: 93, name: "Combination Sum", pattern: "Backtracking", difficulty: "Medium", url: "https://leetcode.com/problems/combination-sum/", source: "LeetCode", builtIn: true, topics: ["Array", "Backtracking"] },
+  { id: 94, name: "Letter Combinations of a Phone Number", pattern: "Backtracking", difficulty: "Medium", url: "https://leetcode.com/problems/letter-combinations-of-a-phone-number/", source: "LeetCode", builtIn: true, topics: ["String", "Backtracking"] },
+  { id: 95, name: "Palindrome Partitioning", pattern: "Backtracking", difficulty: "Medium", url: "https://leetcode.com/problems/palindrome-partitioning/", source: "LeetCode", builtIn: true, topics: ["String", "Backtracking", "DFS"] },
+  { id: 96, name: "N-Queens", pattern: "Backtracking", difficulty: "Hard", url: "https://leetcode.com/problems/n-queens/", source: "LeetCode", builtIn: true, topics: ["Array", "Backtracking"] },
+  { id: 97, name: "Word Search", pattern: "Backtracking", difficulty: "Medium", url: "https://leetcode.com/problems/word-search/", source: "LeetCode", builtIn: true, topics: ["Array", "Backtracking", "Matrix"] },
+  { id: 98, name: "Sudoku Solver", pattern: "Backtracking", difficulty: "Hard", url: "https://leetcode.com/problems/sudoku-solver/", source: "LeetCode", builtIn: true, topics: ["Array", "Backtracking", "Matrix"] },
+
+  // Stack & Queue
+  { id: 99, name: "Valid Parentheses", pattern: "Stack & Queue", difficulty: "Easy", url: "https://leetcode.com/problems/valid-parentheses/", source: "LeetCode", builtIn: true, topics: ["String", "Stack"] },
+  { id: 100, name: "Min Stack", pattern: "Stack & Queue", difficulty: "Medium", url: "https://leetcode.com/problems/min-stack/", source: "LeetCode", builtIn: true, topics: ["Stack", "Design"] },
+  { id: 101, name: "Daily Temperatures", pattern: "Stack & Queue", difficulty: "Medium", url: "https://leetcode.com/problems/daily-temperatures/", source: "LeetCode", builtIn: true, topics: ["Array", "Stack"] },
+  { id: 102, name: "Evaluate Reverse Polish Notation", pattern: "Stack & Queue", difficulty: "Medium", url: "https://leetcode.com/problems/evaluate-reverse-polish-notation/", source: "LeetCode", builtIn: true, topics: ["Array", "Stack", "Math"] },
+  { id: 103, name: "Largest Rectangle in Histogram", pattern: "Stack & Queue", difficulty: "Hard", url: "https://leetcode.com/problems/largest-rectangle-in-histogram/", source: "LeetCode", builtIn: true, topics: ["Array", "Stack"] },
+  { id: 104, name: "Implement Queue using Stacks", pattern: "Stack & Queue", difficulty: "Easy", url: "https://leetcode.com/problems/implement-queue-using-stacks/", source: "LeetCode", builtIn: true, topics: ["Stack", "Queue", "Design"] },
+  { id: 105, name: "Decode String", pattern: "Stack & Queue", difficulty: "Medium", url: "https://leetcode.com/problems/decode-string/", source: "LeetCode", builtIn: true, topics: ["String", "Stack"] },
+  { id: 106, name: "Asteroid Collision", pattern: "Stack & Queue", difficulty: "Medium", url: "https://leetcode.com/problems/asteroid-collision/", source: "LeetCode", builtIn: true, topics: ["Array", "Stack"] },
+  { id: 107, name: "Online Stock Span", pattern: "Stack & Queue", difficulty: "Medium", url: "https://leetcode.com/problems/online-stock-span/", source: "LeetCode", builtIn: true, topics: ["Stack", "Design"] },
+
+  // Heap / Priority Queue
+  { id: 108, name: "Kth Largest Element in an Array", pattern: "Heap / Priority Queue", difficulty: "Medium", url: "https://leetcode.com/problems/kth-largest-element-in-an-array/", source: "LeetCode", builtIn: true, topics: ["Array", "Heap"] },
+  { id: 109, name: "Top K Frequent Elements", pattern: "Heap / Priority Queue", difficulty: "Medium", url: "https://leetcode.com/problems/top-k-frequent-elements/", source: "LeetCode", builtIn: true, topics: ["Array", "Hash Table", "Heap"] },
+  { id: 110, name: "Find Median from Data Stream", pattern: "Heap / Priority Queue", difficulty: "Hard", url: "https://leetcode.com/problems/find-median-from-data-stream/", source: "LeetCode", builtIn: true, topics: ["Heap", "Design"] },
+  { id: 111, name: "Merge k Sorted Lists", pattern: "Heap / Priority Queue", difficulty: "Hard", url: "https://leetcode.com/problems/merge-k-sorted-lists/", source: "LeetCode", builtIn: true, topics: ["Linked List", "Heap"] },
+  { id: 112, name: "Task Scheduler", pattern: "Heap / Priority Queue", difficulty: "Medium", url: "https://leetcode.com/problems/task-scheduler/", source: "LeetCode", builtIn: true, topics: ["Array", "Heap", "Greedy"] },
+  { id: 113, name: "Reorganize String", pattern: "Heap / Priority Queue", difficulty: "Medium", url: "https://leetcode.com/problems/reorganize-string/", source: "LeetCode", builtIn: true, topics: ["String", "Heap", "Greedy"] },
+  { id: 114, name: "K Closest Points to Origin", pattern: "Heap / Priority Queue", difficulty: "Medium", url: "https://leetcode.com/problems/k-closest-points-to-origin/", source: "LeetCode", builtIn: true, topics: ["Array", "Heap", "Math"] },
+  { id: 115, name: "Smallest Range Covering Elements from K Lists", pattern: "Heap / Priority Queue", difficulty: "Hard", url: "https://leetcode.com/problems/smallest-range-covering-elements-from-k-lists/", source: "LeetCode", builtIn: true, topics: ["Array", "Heap"] },
+
+  // Greedy
+  { id: 116, name: "Maximum Subarray", pattern: "Greedy", difficulty: "Medium", url: "https://leetcode.com/problems/maximum-subarray/", source: "LeetCode", builtIn: true, topics: ["Array", "Dynamic Programming", "Greedy"] },
+  { id: 117, name: "Jump Game II", pattern: "Greedy", difficulty: "Medium", url: "https://leetcode.com/problems/jump-game-ii/", source: "LeetCode", builtIn: true, topics: ["Array", "Greedy"] },
+  { id: 118, name: "Gas Station", pattern: "Greedy", difficulty: "Medium", url: "https://leetcode.com/problems/gas-station/", source: "LeetCode", builtIn: true, topics: ["Array", "Greedy"] },
+  { id: 119, name: "Hand of Straights", pattern: "Greedy", difficulty: "Medium", url: "https://leetcode.com/problems/hand-of-straights/", source: "LeetCode", builtIn: true, topics: ["Array", "Hash Table", "Greedy", "Sorting"] },
+  { id: 120, name: "Merge Triplets to Form Target Triplet", pattern: "Greedy", difficulty: "Medium", url: "https://leetcode.com/problems/merge-triplets-to-form-target-triplet/", source: "LeetCode", builtIn: true, topics: ["Array", "Greedy"] },
+  { id: 121, name: "Partition Labels", pattern: "Greedy", difficulty: "Medium", url: "https://leetcode.com/problems/partition-labels/", source: "LeetCode", builtIn: true, topics: ["String", "Greedy", "Hash Table"] },
+  { id: 122, name: "Valid Parenthesis String", pattern: "Greedy", difficulty: "Medium", url: "https://leetcode.com/problems/valid-parenthesis-string/", source: "LeetCode", builtIn: true, topics: ["String", "Greedy", "Stack"] },
+  { id: 123, name: "Meeting Rooms II", pattern: "Greedy", difficulty: "Medium", url: "https://leetcode.com/problems/meeting-rooms-ii/", source: "LeetCode", builtIn: true, topics: ["Array", "Greedy", "Sorting", "Heap"] },
+
+  // Bit Manipulation
+  { id: 124, name: "Single Number", pattern: "Bit Manipulation", difficulty: "Easy", url: "https://leetcode.com/problems/single-number/", source: "LeetCode", builtIn: true, topics: ["Array", "Bit Manipulation"] },
+  { id: 125, name: "Number of 1 Bits", pattern: "Bit Manipulation", difficulty: "Easy", url: "https://leetcode.com/problems/number-of-1-bits/", source: "LeetCode", builtIn: true, topics: ["Bit Manipulation"] },
+  { id: 126, name: "Counting Bits", pattern: "Bit Manipulation", difficulty: "Easy", url: "https://leetcode.com/problems/counting-bits/", source: "LeetCode", builtIn: true, topics: ["Dynamic Programming", "Bit Manipulation"] },
+  { id: 127, name: "Reverse Bits", pattern: "Bit Manipulation", difficulty: "Easy", url: "https://leetcode.com/problems/reverse-bits/", source: "LeetCode", builtIn: true, topics: ["Bit Manipulation"] },
+  { id: 128, name: "Missing Number", pattern: "Bit Manipulation", difficulty: "Easy", url: "https://leetcode.com/problems/missing-number/", source: "LeetCode", builtIn: true, topics: ["Array", "Bit Manipulation", "Math"] },
+  { id: 129, name: "Sum of Two Integers", pattern: "Bit Manipulation", difficulty: "Medium", url: "https://leetcode.com/problems/sum-of-two-integers/", source: "LeetCode", builtIn: true, topics: ["Bit Manipulation", "Math"] },
+  { id: 130, name: "Hamming Distance", pattern: "Bit Manipulation", difficulty: "Easy", url: "https://leetcode.com/problems/hamming-distance/", source: "LeetCode", builtIn: true, topics: ["Bit Manipulation"] },
 ];
 
 /** @deprecated Use allProblems from useProblems hook instead */
 export const PROBLEMS = BUILTIN_PROBLEMS;
 
 /** Spaced repetition intervals (days after solving) */
-export const SPACED_DAYS = [3, 5, 9, 15];
+export const DEFAULT_SPACED_DAYS = [3, 5, 9, 15];
+export let SPACED_DAYS = [...DEFAULT_SPACED_DAYS];
 
-export const BUILTIN_PATTERNS = ["Two Pointers", "Fast & Slow Pointers", "Linked List", "Sliding Window", "Prefix Sum", "Binary Search"];
+export const DEFAULT_SETTINGS: UserSettings = {
+  spacedDays: [3, 5, 9, 15],
+  spacedPreset: "default",
+  notificationsEnabled: false,
+  notificationTime: "09:00",
+  theme: "dark",
+};
+
+export const SPACED_PRESETS: Record<string, number[]> = {
+  aggressive: [1, 3, 5, 10],
+  default: [3, 5, 9, 15],
+  relaxed: [3, 7, 14, 30],
+};
+
+export const BUILTIN_PATTERNS = [
+  "Two Pointers", "Fast & Slow Pointers", "Linked List", "Sliding Window", "Prefix Sum", "Binary Search",
+  "Trees", "Graphs", "Dynamic Programming", "Backtracking", "Stack & Queue", "Heap / Priority Queue", "Greedy", "Bit Manipulation",
+];
 export const PATTERNS = ["All", ...BUILTIN_PATTERNS];
 export const DIFFICULTIES = ["All", "Easy", "Medium", "Hard"];
 
@@ -99,12 +209,22 @@ export const PATTERN_COLORS: Record<string, string> = {
   "Sliding Window": "#f472b6",
   "Prefix Sum": "#60a5fa",
   "Binary Search": "#a78bfa",
+  "Trees": "#22c55e",
+  "Graphs": "#06b6d4",
+  "Dynamic Programming": "#d946ef",
+  "Backtracking": "#f43f5e",
+  "Stack & Queue": "#eab308",
+  "Heap / Priority Queue": "#14b8a6",
+  "Greedy": "#f97316",
+  "Bit Manipulation": "#6366f1",
 };
 
 export const BUILTIN_TOPICS = [
   "Array", "String", "Linked List", "Hash Table", "Math",
   "Sorting", "Stack", "Heap", "Matrix", "Greedy",
   "Recursion", "Design", "Deque", "Dynamic Programming",
+  "Tree", "Binary Search Tree", "Graph", "BFS", "DFS",
+  "Backtracking", "Bit Manipulation", "Trie", "Queue", "Union Find",
 ] as const;
 
 export const TOPIC_COLORS: Record<string, string> = {
@@ -122,6 +242,16 @@ export const TOPIC_COLORS: Record<string, string> = {
   "Design": "#6366f1",
   "Deque": "#0ea5e9",
   "Dynamic Programming": "#d946ef",
+  "Tree": "#22c55e",
+  "Binary Search Tree": "#16a34a",
+  "Graph": "#0891b2",
+  "BFS": "#38bdf8",
+  "DFS": "#818cf8",
+  "Backtracking": "#f43f5e",
+  "Bit Manipulation": "#6366f1",
+  "Trie": "#a78bfa",
+  "Queue": "#fb923c",
+  "Union Find": "#34d399",
 };
 
 export const RATING_OPTIONS: {
@@ -147,4 +277,4 @@ export const NOTES_TEMPLATES = [
 export const PROGRESS_STORAGE_KEY = "dsa-progress";
 export const NOTES_STORAGE_KEY = "dsa-notes";
 
-export const TAB_KEYS = ["problems", "random", "today", "upcoming"] as const;
+export const TAB_KEYS = ["problems", "random", "today", "upcoming", "stats"] as const;

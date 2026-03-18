@@ -90,7 +90,8 @@ export function FilterBar({
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Search problems by name..."
-              className="w-full pl-9 pr-8 py-2 rounded-xl border border-surface-700/60 bg-surface-900/70 text-sm text-surface-200 placeholder:text-surface-600 focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/40"
+              className="w-full pl-9 pr-8 py-2 rounded-xl text-sm focus:outline-none focus:border-blue-500/60 focus:ring-1 focus:ring-blue-500/40"
+              style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", color: "var(--color-text-primary)" }}
               aria-label="Search problems"
             />
             {search && (
@@ -105,7 +106,8 @@ export function FilterBar({
           </div>
           <button
             onClick={() => setModalOpen(true)}
-            className="relative shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl border border-surface-700/60 bg-surface-800/80 text-sm text-surface-300 hover:text-white hover:border-surface-500 transition-colors cursor-pointer"
+            className="relative shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-colors cursor-pointer"
+            style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", color: "var(--color-text-secondary)" }}
             aria-label={`Open filters${activeCount > 0 ? ` (${activeCount} active)` : ""}`}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -207,7 +209,7 @@ export function FilterBar({
           <div className="relative w-full max-w-lg glass-card p-6 animate-slide-up space-y-5 max-h-[85vh] overflow-y-auto">
             {/* Header */}
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: "var(--color-text-heading)" }}>
                 <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
@@ -220,7 +222,8 @@ export function FilterBar({
               </h2>
               <button
                 onClick={() => setModalOpen(false)}
-                className="w-8 h-8 rounded-lg bg-surface-700/60 text-surface-400 hover:text-white flex items-center justify-center cursor-pointer transition-colors"
+                className="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer transition-colors"
+                style={{ background: "var(--color-surface-hover)", color: "var(--color-text-secondary)" }}
                 aria-label="Close"
               >
                 ✕
@@ -229,7 +232,7 @@ export function FilterBar({
 
             {/* Scope */}
             <div>
-              <label className="block text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--color-text-secondary)" }}>
                 Scope
               </label>
               <div className="flex flex-wrap gap-2">
@@ -267,7 +270,7 @@ export function FilterBar({
 
             {/* Pattern (also in modal) */}
             <div>
-              <label className="block text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--color-text-secondary)" }}>
                 Pattern
               </label>
               <div className="flex flex-wrap gap-2">
@@ -300,7 +303,7 @@ export function FilterBar({
 
             {/* Difficulty */}
             <div>
-              <label className="block text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--color-text-secondary)" }}>
                 Difficulty
               </label>
               <div className="flex flex-wrap gap-2">
@@ -333,7 +336,7 @@ export function FilterBar({
 
             {/* Source */}
             <div>
-              <label className="block text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--color-text-secondary)" }}>
                 Source
               </label>
               <div className="flex flex-wrap gap-2">
@@ -366,7 +369,7 @@ export function FilterBar({
 
             {/* Topic */}
             <div>
-              <label className="block text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--color-text-secondary)" }}>
                 Topic
               </label>
               <div className="flex flex-wrap gap-2">

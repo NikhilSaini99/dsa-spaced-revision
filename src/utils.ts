@@ -110,6 +110,16 @@ export function nameFromUrl(url: string): string {
   }
 }
 
+/** Deterministic hash for a date string (for Problem of the Day) */
+export function hashDate(dateStr: string): number {
+  let hash = 0;
+  for (let i = 0; i < dateStr.length; i++) {
+    hash = ((hash << 5) - hash) + dateStr.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
 function slugToTitle(slug: string): string {
   return slug
     .replace(/[-_]/g, " ")

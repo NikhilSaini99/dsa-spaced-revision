@@ -32,6 +32,9 @@ export function useKeyboardShortcuts({
         case "4":
           setTab("upcoming");
           break;
+        case "5":
+          setTab("stats");
+          break;
         case "r":
         case "R":
           if (!e.ctrlKey && !e.metaKey) rollRandom();

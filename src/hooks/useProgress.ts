@@ -1,9 +1,35 @@
 import { useState, useEffect, useCallback } from "react";
-import type { ProblemProgress, SolveRating, ExportData } from "../types";
-import { PROGRESS_STORAGE_KEY, NOTES_STORAGE_KEY, SPACED_DAYS } from "../config";
+import type { ProblemProgress, SolveRating, ExportData, UserSettings } from "../types";
+import { PROGRESS_STORAGE_KEY, NOTES_STORAGE_KEY, SPACED_DAYS, DEFAULT_SETTINGS } from "../config";
 import { addDays, today } from "../utils";
 
-export function useProgress() {
+/**
+ * Compute adaptive revision intervals based on the solve rating.
+ * - "easy"      → multiply base intervals by 1.5 (space them out more)
+ * - "got-it"    → use base intervals unchanged
+ * - "struggled" → multiply by 0.7 (min 1 day each)
+ * - "redo"      → prepend an extra day-1 revision, then use 0.7× shortened intervals
+ */
+function adaptiveIntervals(
+  baseDays: number[],
+  rating?: SolveRating
+): number[] {
+  if (!rating || rating === "got-it") return baseDays;
+
+  if (rating === "easy") {
+    return baseDays.map((d) => Math.round(d * 1.5));
+  }
+
+  if (rating === "struggled") {
+    return baseDays.map((d) => Math.max(1, Math.round(d * 0.7)));
+  }
+
+  // "redo" – extra revision at day 1, then shortened intervals
+  const shortened = baseDays.map((d) => Math.max(1, Math.round(d * 0.7)));
+  return [1, ...shortened];
+}
+
+export function useProgress(settings?: UserSettings) {
   const [progress, setProgress] = useState<Record<number, ProblemProgress>>({});
   const [loaded, setLoaded] = useState(false);
 
@@ -30,11 +56,13 @@ export function useProgress() {
     setProgress((prev) => {
       if (prev[id]?.solvedDate) return prev;
       const td = today();
+      const baseDays = settings?.spacedDays ?? SPACED_DAYS;
+      const intervals = adaptiveIntervals(baseDays, rating);
       const next = {
         ...prev,
         [id]: {
           solvedDate: td,
-          revisions: SPACED_DAYS.map((d) => ({ date: addDays(td, d), done: false })),
+          revisions: intervals.map((d) => ({ date: addDays(td, d), done: false })),
           rating,
         },
       };
@@ -45,7 +73,7 @@ export function useProgress() {
       }
       return next;
     });
-  }, []);
+  }, [settings?.spacedDays]);
 
   const updateRating = useCallback((id: number, rating: SolveRating) => {
     setProgress((prev) => {
@@ -64,7 +92,12 @@ export function useProgress() {
     setProgress((prev) => {
       const p = { ...prev };
       const revs = [...p[id].revisions];
-      revs[rIdx] = { ...revs[rIdx], done: !revs[rIdx].done };
+      const wasDone = revs[rIdx].done;
+      revs[rIdx] = {
+        ...revs[rIdx],
+        done: !wasDone,
+        completedDate: !wasDone ? today() : undefined,
+      };
       p[id] = { ...p[id], revisions: revs };
       try {
         localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(p));
@@ -90,7 +123,7 @@ export function useProgress() {
 
   const exportData = useCallback(
     (notesById: Record<number, string>): ExportData => ({
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       progress,
       notes: notesById,
@@ -100,6 +133,7 @@ export function useProgress() {
 
   const importData = useCallback(
     (data: ExportData, setNotesById: (n: Record<number, string>) => void) => {
+      // Accept both version 1 and version 2 exports
       save(data.progress);
       setNotesById(data.notes || {});
       try {

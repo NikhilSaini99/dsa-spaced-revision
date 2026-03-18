@@ -20,6 +20,14 @@ interface Props {
   setNotesById: (n: Record<number, string>) => void;
   importCustomProblems: (problems: Problem[]) => number;
   onAddProblem: () => void;
+  currentStreak: number;
+  longestStreak: number;
+  todayActive: boolean;
+  theme: string;
+  onToggleTheme: () => void;
+  onOpenSettings: () => void;
+  onToastSuccess: (msg: string) => void;
+  onToastError: (msg: string) => void;
 }
 
 export function Header({
@@ -35,6 +43,14 @@ export function Header({
   setNotesById,
   importCustomProblems,
   onAddProblem,
+  currentStreak,
+  longestStreak,
+  todayActive,
+  theme,
+  onToggleTheme,
+  onOpenSettings,
+  onToastSuccess,
+  onToastError,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,7 +77,7 @@ export function Header({
       try {
         const data = JSON.parse(reader.result as string) as ExportData;
         if (!data.progress || data.version !== 1) {
-          alert("Invalid backup file format.");
+          onToastError("Invalid backup file format.");
           return;
         }
         onImport(data, setNotesById);
@@ -69,11 +85,11 @@ export function Header({
         if (data.customProblems && Array.isArray(data.customProblems)) {
           customCount = importCustomProblems(data.customProblems);
         }
-        alert(
+        onToastSuccess(
           `Imported successfully! (${Object.keys(data.progress).length} solved, ${Object.keys(data.notes || {}).length} notes${customCount > 0 ? `, ${customCount} custom problems` : ""})`
         );
       } catch {
-        alert("Failed to parse backup file.");
+        onToastError("Failed to parse backup file.");
       }
     };
     reader.readAsText(file);
@@ -81,7 +97,7 @@ export function Header({
   };
 
   return (
-    <header className="relative overflow-hidden border-b border-surface-700/50">
+    <header className="relative overflow-hidden" style={{ borderBottom: "1px solid var(--color-border)" }}>
       <div
         className="absolute -top-24 left-1/2 -translate-x-1/2 w-[600px] h-48 bg-blue-600/10 blur-[100px] rounded-full pointer-events-none"
         aria-hidden="true"
@@ -94,119 +110,190 @@ export function Header({
         Skip to main content
       </a>
 
-      <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 py-5 sm:py-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
-        {/* Brand */}
-        <div>
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
+      {/* Top Navbar — glass effect with brand + theme/settings */}
+      <div
+        className="sticky top-0 z-30"
+        style={{
+          background: "var(--color-glass-bg)",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          borderBottom: "1px solid var(--color-glass-border)",
+        }}
+      >
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-2.5 flex items-center justify-between">
+          {/* Brand */}
+          <div className="flex items-center gap-2">
             <span
-              className="inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-base sm:text-lg shadow-lg shadow-blue-600/30"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-base shadow-lg shadow-blue-600/30"
               aria-hidden="true"
             >
               🧠
             </span>
-            DSA Revision Tracker
-          </h1>
-          <p className="mt-1 text-[10px] sm:text-xs text-surface-500">
-            Spaced Repetition · Pattern Blind · Interview Ready
-          </p>
+            <div>
+              <h1 className="text-base sm:text-lg font-extrabold tracking-tight" style={{ color: "var(--color-text-heading)" }}>
+                DSA Revision Tracker
+              </h1>
+              <p className="text-[10px] sm:text-xs hidden sm:block" style={{ color: "var(--color-text-muted)" }}>
+                Spaced Repetition · Pattern Blind · Interview Ready
+              </p>
+            </div>
+          </div>
+
+          {/* Right: Theme + Settings */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={onToggleTheme}
+              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 cursor-pointer hover:scale-105"
+              style={{
+                background: "var(--color-surface-elevated)",
+                border: "1px solid var(--color-border-subtle)",
+              }}
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+            >
+              <span className="text-lg" aria-hidden="true">
+                {theme === "dark" ? "☀️" : "🌙"}
+              </span>
+            </button>
+            <button
+              onClick={onOpenSettings}
+              className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 cursor-pointer hover:scale-105"
+              style={{
+                background: "var(--color-surface-elevated)",
+                border: "1px solid var(--color-border-subtle)",
+              }}
+              aria-label="Open settings"
+            >
+              <span className="text-lg" aria-hidden="true">
+                ⚙️
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats + Actions Row */}
+      <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 py-4 sm:py-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-5">
+        {/* Stat cards */}
+        <div className="flex gap-3 sm:gap-4 flex-wrap">
+          {[
+            {
+              label: "Solved",
+              val: solvedCount,
+              total: totalProblems,
+              color: "#4ade80",
+            },
+            {
+              label: "Revisions",
+              val: totalRevsDone,
+              total: totalRevs,
+              color: "#818cf8",
+            },
+            {
+              label: "Due Today",
+              val: todayCount,
+              total: undefined as number | undefined,
+              color: "#f87171",
+            },
+          ].map((s) => (
+            <div
+              key={s.label}
+              className="glass-card px-3 sm:px-5 py-2 sm:py-3 flex items-center gap-2 sm:gap-3 min-w-[120px] sm:min-w-[160px]"
+              role="status"
+              aria-label={`${s.label}: ${s.val}${s.total !== undefined ? ` of ${s.total}` : ""}`}
+            >
+              <div className="relative flex items-center justify-center">
+                <ProgressRing
+                  pct={
+                    s.total
+                      ? s.val / (s.total || 1)
+                      : s.val > 0
+                        ? 1
+                        : 0
+                  }
+                  color={s.color}
+                  size={36}
+                />
+                <span
+                  className="absolute text-[10px] sm:text-xs font-bold tabular-nums"
+                  style={{ color: s.color }}
+                >
+                  {s.val}
+                </span>
+              </div>
+              <div>
+                <div className="text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold" style={{ color: "var(--color-text-muted)" }}>
+                  {s.label}
+                </div>
+                {s.total !== undefined && (
+                  <div className="text-xs sm:text-sm font-bold tabular-nums" style={{ color: "var(--color-text-primary)" }}>
+                    {s.val}
+                    <span style={{ color: "var(--color-text-muted)" }}>/{s.total}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* Streak display */}
+          <div
+            className={`glass-card px-3 sm:px-5 py-2 sm:py-3 flex items-center gap-2 sm:gap-3 min-w-[100px] sm:min-w-[120px]${!todayActive ? " animate-pulse" : ""}`}
+            role="status"
+            aria-label={`Current streak: ${currentStreak} days, longest: ${longestStreak} days`}
+          >
+            <span className="text-xl sm:text-2xl" aria-hidden="true">
+              🔥
+            </span>
+            <div>
+              <div className="text-sm sm:text-base font-extrabold text-orange-400 tabular-nums">
+                {currentStreak}
+              </div>
+              <div className="text-[10px] sm:text-[11px] tabular-nums" style={{ color: "var(--color-text-muted)" }}>
+                longest: {longestStreak}
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Stats + Export/Import */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
-          {/* Stat cards */}
-          <div className="flex gap-3 sm:gap-4 flex-wrap">
-            {[
-              {
-                label: "Solved",
-                val: solvedCount,
-                total: totalProblems,
-                color: "#4ade80",
-              },
-              {
-                label: "Revisions",
-                val: totalRevsDone,
-                total: totalRevs,
-                color: "#818cf8",
-              },
-              {
-                label: "Due Today",
-                val: todayCount,
-                total: undefined as number | undefined,
-                color: "#f87171",
-              },
-            ].map((s) => (
-              <div
-                key={s.label}
-                className="glass-card px-3 sm:px-5 py-2 sm:py-3 flex items-center gap-2 sm:gap-3 min-w-[120px] sm:min-w-[160px]"
-                role="status"
-                aria-label={`${s.label}: ${s.val}${s.total !== undefined ? ` of ${s.total}` : ""}`}
-              >
-                <div className="relative flex items-center justify-center">
-                  <ProgressRing
-                    pct={
-                      s.total
-                        ? s.val / (s.total || 1)
-                        : s.val > 0
-                          ? 1
-                          : 0
-                    }
-                    color={s.color}
-                    size={36}
-                  />
-                  <span
-                    className="absolute text-[10px] sm:text-xs font-bold"
-                    style={{ color: s.color }}
-                  >
-                    {s.val}
-                  </span>
-                </div>
-                <div>
-                  <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-surface-500 font-semibold">
-                    {s.label}
-                  </div>
-                  {s.total !== undefined && (
-                    <div className="text-xs sm:text-sm font-bold text-surface-300">
-                      {s.val}
-                      <span className="text-surface-600">/{s.total}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Add / Export / Import */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onAddProblem}
-              className="btn-primary text-[10px] sm:text-[11px] px-2.5 py-1.5 flex items-center gap-1"
-              aria-label="Add a custom problem"
-            >
-              <span aria-hidden="true">+</span> Add Problem
-            </button>
-            <button
-              onClick={handleExport}
-              className="btn-ghost text-[10px] sm:text-[11px] px-2.5 py-1.5 flex items-center gap-1"
-              aria-label="Export data as JSON backup"
-            >
-              <span aria-hidden="true">📤</span> Export
-            </button>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="btn-ghost text-[10px] sm:text-[11px] px-2.5 py-1.5 flex items-center gap-1"
-              aria-label="Import data from JSON backup"
-            >
-              <span aria-hidden="true">📥</span> Import
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={handleImport}
-              aria-hidden="true"
-            />
-          </div>
+        {/* Action buttons: Add / Export / Import */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onAddProblem}
+            className="btn-primary text-xs px-3 py-2 flex items-center gap-1.5"
+            aria-label="Add a custom problem"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Add Problem
+          </button>
+          <button
+            onClick={handleExport}
+            className="btn-ghost text-xs px-3 py-2 flex items-center gap-1.5"
+            aria-label="Export data as JSON backup"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+            </svg>
+            Export
+          </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="btn-ghost text-xs px-3 py-2 flex items-center gap-1.5"
+            aria-label="Import data from JSON backup"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12M12 16.5V3" />
+            </svg>
+            Import
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImport}
+            aria-hidden="true"
+          />
         </div>
       </div>
     </header>
