@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { SPACED_DAYS } from "../config";
+import { SPACED_DAYS, CURRENT_SCHEMA_VERSION } from "../config";
 import type { Problem, ProblemProgress, ExportData } from "../types";
 import { ProgressRing } from "./ProgressRing";
 
@@ -60,7 +60,8 @@ export function Header({
     reader.onload = () => {
       try {
         const data = JSON.parse(reader.result as string) as ExportData;
-        if (!data.progress || data.version !== 1) {
+        const version = data.version || 1;
+        if (!data.progress || version < 1 || version > CURRENT_SCHEMA_VERSION) {
           alert("Invalid backup file format.");
           return;
         }
